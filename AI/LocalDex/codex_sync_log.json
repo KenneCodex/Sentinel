@@ -1,0 +1,138 @@
+{
+  "source": "Sentinel AI",
+  "synced_at": "2025-04-10T20:20:07.832942",
+  "events": [
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:16:03,878 INFO: Drift Score: 0.035"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:16:13,886 INFO: Drift Score: 0.167"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:16:13,886 WARNING: \\u26a0\\ufe0f Resetting agent frequency to 72 Hz (stabilization mode)."
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:16:25,907 INFO: Drift Score: 0.067"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:16:35,922 INFO: Drift Score: 0.057"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:16:45,938 INFO: Drift Score: 0.064"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:16:55,940 INFO: Drift Score: 0.029"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:17:05,952 INFO: Drift Score: 0.253"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:17:05,952 WARNING: \\u26a0\\ufe0f Resetting agent frequency to 72 Hz (stabilization mode)."
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:17:17,971 INFO: Drift Score: 0.177"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:17:17,971 WARNING: \\u26a0\\ufe0f Resetting agent frequency to 72 Hz (stabilization mode)."
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:17:29,974 INFO: Drift Score: 0.181"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:17:29,974 WARNING: \\u26a0\\ufe0f Resetting agent frequency to 72 Hz (stabilization mode)."
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:17:41,980 INFO: Drift Score: 0.189"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:17:41,980 WARNING: \\u26a0\\ufe0f Resetting agent frequency to 72 Hz (stabilization mode)."
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:17:53,999 INFO: Drift Score: 0.082"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:18:04,005 INFO: Drift Score: 0.193"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:18:04,005 WARNING: \\u26a0\\ufe0f Resetting agent frequency to 72 Hz (stabilization mode)."
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:18:16,021 INFO: Drift Score: 0.076"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:18:26,026 INFO: Drift Score: 0.154"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:18:26,026 WARNING: \\u26a0\\ufe0f Resetting agent frequency to 72 Hz (stabilization mode)."
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:18:38,042 INFO: Drift Score: 0.295"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:18:38,042 WARNING: \\u26a0\\ufe0f Resetting agent frequency to 72 Hz (stabilization mode)."
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:18:50,054 INFO: Drift Score: 0.094"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:19:00,058 INFO: Drift Score: 0.164"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:19:00,058 WARNING: \\u26a0\\ufe0f Resetting agent frequency to 72 Hz (stabilization mode)."
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:19:12,072 INFO: Drift Score: 0.110"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:19:22,087 INFO: Drift Score: 0.068"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:19:32,098 INFO: Drift Score: 0.283"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:19:32,098 WARNING: \\u26a0\\ufe0f Resetting agent frequency to 72 Hz (stabilization mode)."
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:19:44,125 INFO: Drift Score: 0.051"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:19:54,126 INFO: Drift Score: 0.027"
+    },
+    {
+      "timestamp": "2025-04-10T20:20:07.832942",
+      "event": "2025-04-10 15:20:04,132 INFO: Drift Score: 0.036"
+    }
+  ]
+}
