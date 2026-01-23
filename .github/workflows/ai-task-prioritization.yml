@@ -109,6 +109,7 @@ jobs:
           path: |
             .audit-logs/task-prioritization-*.json
             .audit-logs/priority-config.json
+          if-no-files-found: warn
       
       - name: Create prioritization summary
         if: always()
@@ -123,9 +124,12 @@ jobs:
           echo "- Trigger: ${{ github.event_name }}" >> priority-summary.md
           echo "" >> priority-summary.md
           
-          if [ -f .audit-logs/task-prioritization-*.json ]; then
+          # Check if any prioritization logs were created
+          if ls .audit-logs/task-prioritization-*.json 1> /dev/null 2>&1; then
             echo "### Priority Score" >> priority-summary.md
             echo "See artifact for detailed prioritization results" >> priority-summary.md
+          else
+            echo "No prioritization logs generated" >> priority-summary.md
           fi
       
       - name: Upload summary

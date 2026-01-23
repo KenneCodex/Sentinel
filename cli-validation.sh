@@ -256,7 +256,7 @@ validate_git_configuration() {
     echo ""
 }
 
-# Function to validate shell scripts syntax
+### Shell script syntax
 validate_shell_scripts_syntax() {
     log_message "=== Validating Shell Scripts Syntax ==="
     
@@ -267,6 +267,7 @@ validate_shell_scripts_syntax() {
         return
     fi
     
+    # Only validate syntax if bash is available (which it should be)
     while IFS= read -r script; do
         if bash -n "$script" 2>/dev/null; then
             log_success "Syntax OK: $script"
@@ -342,10 +343,8 @@ main() {
     validate_configuration_files
     validate_git_configuration
     
-    # Only validate syntax if shellcheck is available or bash -n works
-    if command -v shellcheck &> /dev/null || command -v bash &> /dev/null; then
-        validate_shell_scripts_syntax
-    fi
+    # Validate shell script syntax (bash should always be available for this script)
+    validate_shell_scripts_syntax
     
     create_validation_audit_log
     print_summary

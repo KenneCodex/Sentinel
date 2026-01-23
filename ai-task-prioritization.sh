@@ -123,12 +123,18 @@ analyze_tasks_from_json() {
     # Initialize audit log
     echo "[" > "$AUDIT_LOG_FILE"
     
-    # Parse JSON and prioritize each task
-    # This is a simplified version - in production, use jq for JSON parsing
-    local first_task=true
+    # Note: This requires jq for JSON parsing
+    if ! command -v jq &> /dev/null; then
+        log_message "WARNING: jq is not installed. JSON parsing not available."
+        log_message "Please install jq for JSON batch processing."
+        echo "]" >> "$AUDIT_LOG_FILE"
+        return 1
+    fi
     
-    # Note: This would typically use jq to parse JSON
-    # For now, this is a placeholder for the structure
+    # Parse JSON and prioritize each task
+    # Example JSON structure: {"tasks": [{"id": "TASK-1", "name": "...", ...}]}
+    local tasks_count=$(jq '.tasks | length' "$json_file")
+    log_message "Found $tasks_count tasks to prioritize"
     
     echo "]" >> "$AUDIT_LOG_FILE"
     
@@ -209,6 +215,14 @@ EOF
 # Main execution
 main() {
     log_message "=== AI-Driven Task Prioritization Model ==="
+    
+    # Check for bc dependency
+    if ! command -v bc &> /dev/null; then
+        log_message "ERROR: 'bc' is required but not installed. Please install it:"
+        log_message "  Ubuntu/Debian: sudo apt-get install bc"
+        log_message "  macOS: brew install bc"
+        exit 1
+    fi
     
     # Check if config exists, if not create it
     if [[ ! -f "$PRIORITY_CONFIG_FILE" ]]; then

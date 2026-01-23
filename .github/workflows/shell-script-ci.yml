@@ -73,7 +73,7 @@ jobs:
       - name: Generate debug report
         if: always()
         run: |
-          cat > debug-report.md << 'EOF'
+          cat > debug-report.md << EOF
           # Shell Script Debug Report
           
           ## Scripts Analyzed

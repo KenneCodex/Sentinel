@@ -160,29 +160,29 @@ deploy_to_host() {
     
     # Create backup
     local backup_path="${deploy_path}.backup-$TIMESTAMP"
-    ssh -p "$port" "${user}@${hostname}" "if [ -d '$deploy_path' ]; then cp -r '$deploy_path' '$backup_path'; fi" || true
+    ssh -p "$port" "${user}@${hostname}" "if [ -d '$deploy_path' ]; then cp -r '$deploy_path' '$backup_path'; fi" 2>/dev/null || true
     
     # Sync files (dry-run first for validation)
     log_message "Validating file sync to $hostname..."
-    rsync -avz --dry-run -e "ssh -p $port" \
+    if ! rsync -avz --dry-run -e "ssh -p $port" \
         --exclude='.git' \
         --exclude='node_modules' \
         --exclude='.audit-logs/*.json' \
-        ./ "${user}@${hostname}:${deploy_path}/" || {
+        ./ "${user}@${hostname}:${deploy_path}/" 2>/dev/null; then
         log_error "Dry-run sync failed for $hostname"
         return 1
-    }
+    fi
     
     # Actual sync
     log_message "Syncing files to $hostname..."
-    rsync -avz -e "ssh -p $port" \
+    if ! rsync -avz -e "ssh -p $port" \
         --exclude='.git' \
         --exclude='node_modules' \
         --exclude='.audit-logs/*.json' \
-        ./ "${user}@${hostname}:${deploy_path}/" || {
+        ./ "${user}@${hostname}:${deploy_path}/" 2>/dev/null; then
         log_error "File sync failed for $hostname"
         return 1
-    }
+    fi
     
     log_success "Deployment to $hostname completed"
     return 0
@@ -257,15 +257,20 @@ deploy_environment() {
     }
     
     # In a real implementation, parse JSON config
-    # For now, demonstrate the structure
+    # For now, demonstrate the structure with a note
     log_message "Loading deployment configuration..."
     
-    # Simulate deployment
-    log_message "This is a demonstration script. In production:"
-    log_message "1. Parse $DEPLOYMENT_CONFIG_FILE for environment '$environment'"
-    log_message "2. Deploy to each host in parallel"
-    log_message "3. Execute pre-deploy, post-deploy, and validation commands"
-    log_message "4. Create detailed audit logs"
+    log_warning "Note: This is a framework implementation for demonstration."
+    log_message "In production, this would:"
+    log_message "  1. Parse $DEPLOYMENT_CONFIG_FILE for environment '$environment'"
+    log_message "  2. Deploy to each host in parallel using deploy_to_host()"
+    log_message "  3. Execute pre-deploy, post-deploy, and validation commands"
+    log_message "  4. Create detailed audit logs"
+    log_message ""
+    log_message "To implement full functionality:"
+    log_message "  - Install jq for JSON parsing: sudo apt-get install jq"
+    log_message "  - Configure SSH keys for passwordless deployment"
+    log_message "  - Customize deployment-config.json for your hosts"
     
     local end_time=$(date +%s)
     local duration=$((end_time - start_time))
