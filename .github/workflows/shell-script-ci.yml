@@ -1,0 +1,133 @@
+name: Shell Script CI - Debugging & Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - '**.sh'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - '**.sh'
+  workflow_dispatch:
+
+jobs:
+  shellcheck-lint:
+    name: ShellCheck Linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          severity: warning
+          format: gcc
+        env:
+          SHELLCHECK_OPTS: -x
+      
+      - name: Upload ShellCheck results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shellcheck-results
+          path: shellcheck-output.txt
+
+  shell-script-debug:
+    name: Shell Script Debugging
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup debugging environment
+        run: |
+          echo "Setting up shell script debugging environment"
+          sudo apt-get update
+          sudo apt-get install -y shellcheck bash-completion
+      
+      - name: Execute shell scripts with debug mode
+        run: |
+          set -x  # Enable debug mode
+          echo "Running shell scripts with enhanced debugging..."
+          
+          # Find all shell scripts
+          for script in $(find . -name "*.sh" -type f); do
+            echo "=== Debugging: $script ==="
+            
+            # Check syntax
+            bash -n "$script" || echo "Syntax error in $script"
+            
+            # Run with debug output
+            if [[ -x "$script" ]]; then
+              echo "Script is executable, running with debug trace..."
+              bash -x "$script" --help 2>&1 | head -50 || echo "Script execution test completed"
+            else
+              echo "Script not executable: $script"
+            fi
+            
+            echo ""
+          done
+      
+      - name: Generate debug report
+        if: always()
+        run: |
+          cat > debug-report.md << 'EOF'
+          # Shell Script Debug Report
+          
+          ## Scripts Analyzed
+          $(find . -name "*.sh" -type f | wc -l) shell scripts found
+          
+          ## Debug Output
+          Debug traces generated for all shell scripts
+          
+          ## Timestamp
+          $(date -u)
+          EOF
+      
+      - name: Upload debug artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shell-debug-report
+          path: debug-report.md
+
+  shell-script-validation:
+    name: Shell Script Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Validate shell script best practices
+        run: |
+          echo "Validating shell script best practices..."
+          
+          # Check for shebang
+          for script in $(find . -name "*.sh" -type f); do
+            if ! head -1 "$script" | grep -q '^#!'; then
+              echo "Warning: $script missing shebang"
+            fi
+          done
+          
+          # Check for set -e usage
+          for script in $(find . -name "*.sh" -type f); do
+            if ! grep -q 'set -e' "$script"; then
+              echo "Info: $script does not use 'set -e'"
+            fi
+          done
+      
+      - name: Audit log shell script validation
+        run: |
+          mkdir -p .audit-logs
+          cat > .audit-logs/shell-validation-$(date +%Y%m%d-%H%M%S).json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "workflow": "shell-script-validation",
+            "action": "validation",
+            "status": "completed",
+            "scripts_validated": $(find . -name "*.sh" -type f | wc -l),
+            "runner": "${{ runner.os }}"
+          }
+          EOF

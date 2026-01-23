@@ -1,0 +1,34 @@
+# Generated configuration files
+deployment-config.json
+
+# Audit logs (except README and config templates)
+.audit-logs/*.json
+!.audit-logs/priority-config.json
+
+# Temporary files
+*.tmp
+*.log
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+
+# Build artifacts
+dist/
+build/
+*.pyc
+__pycache__/
+
+# Node modules (if any)
+node_modules/
+
+# Environment files
+.env
+.env.local
