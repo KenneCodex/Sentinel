@@ -1,0 +1,59 @@
+{
+  "version": "1.0",
+  "model": "AI-Driven Task Prioritization",
+  "weights": {
+    "urgency": 0.30,
+    "impact": 0.25,
+    "effort": 0.20,
+    "dependencies": 0.15,
+    "risk": 0.10
+  },
+  "priority_levels": {
+    "CRITICAL": {
+      "min_score": 0.75,
+      "max_score": 1.00,
+      "sla_hours": 4,
+      "description": "Critical tasks requiring immediate attention"
+    },
+    "HIGH": {
+      "min_score": 0.60,
+      "max_score": 0.74,
+      "sla_hours": 24,
+      "description": "High priority tasks to be addressed within 1 day"
+    },
+    "MEDIUM": {
+      "min_score": 0.40,
+      "max_score": 0.59,
+      "sla_hours": 72,
+      "description": "Medium priority tasks to be addressed within 3 days"
+    },
+    "LOW": {
+      "min_score": 0.00,
+      "max_score": 0.39,
+      "sla_hours": 168,
+      "description": "Low priority tasks to be addressed within 1 week"
+    }
+  },
+  "factors": {
+    "urgency": {
+      "description": "How time-sensitive is the task?",
+      "scale": "1-10 (1=not urgent, 10=extremely urgent)"
+    },
+    "impact": {
+      "description": "What is the potential impact on the system/users?",
+      "scale": "1-10 (1=minimal impact, 10=critical impact)"
+    },
+    "effort": {
+      "description": "How much effort is required to complete?",
+      "scale": "1-10 (1=minimal effort, 10=significant effort)"
+    },
+    "dependencies": {
+      "description": "How many dependencies does this task have?",
+      "scale": "0-5 (0=no dependencies, 5=many dependencies)"
+    },
+    "risk": {
+      "description": "What is the risk if this task is delayed?",
+      "scale": "1-10 (1=low risk, 10=high risk)"
+    }
+  }
+}
