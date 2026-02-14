@@ -80,7 +80,7 @@ echo_log "✅ Security settings applied. Blockchain authentication enabled."
 
 # 🛠 Step 6: Verify Python Dependencies
 REQUIRED_PYTHON="Python 3.10"
-if ! python3 --version | grep -q "3.10"; then
+if ! python3 -c "import sys; assert sys.version_info.major == 3 and sys.version_info.minor == 10" &>/dev/null; then
     echo_log "🔹 Installing $REQUIRED_PYTHON..."
     sudo apt install -y python3.10 python3.10-venv python3.10-dev
 else
