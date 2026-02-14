@@ -59,8 +59,8 @@ if [[ "${OSTYPE:-}" == "linux-gnu"* ]]; then
 Version=1.0
 Type=Application
 Name=Sentinel Client
-Exec=$SENTINEL_DIR/sentinel_client.py
-Icon=$SENTINEL_DIR/icon.png
+Exec="$SENTINEL_DIR/sentinel_client.py"
+Icon="$SENTINEL_DIR/icon.png"
 Terminal=false
 DESKTOP
     chmod +x "$HOME/Desktop/SentinelClient.desktop"
