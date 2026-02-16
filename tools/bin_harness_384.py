@@ -205,10 +205,11 @@ def compute_run(
             }
         )
 
+    now_iso = utc_now_iso()
     run = HarnessRun(
         schema_version="bin_harness_run_v1",
-        run_id=f"RUN-BIN384-{sha256_hex(f'{dataset_id}|{mode}|{utc_now_iso()}')[:12].upper()}",
-        created_at=utc_now_iso(),
+        run_id=f"RUN-BIN384-{sha256_hex(f'{dataset_id}|{mode}|{now_iso}')[:12].upper()}",
+        created_at=now_iso,
         dataset_id=dataset_id,
         mode=mode,
         n_bins=n_bins,
