@@ -5,6 +5,22 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Load local environment variables when available (without overriding explicit shell exports)
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    # shellcheck disable=SC1091
+    set -a
+    source "$SCRIPT_DIR/.env"
+    set +a
+fi
+
+CODEXJR_PORT="${CODEXJR_PORT:-5051}"
+SENTINEL_PORT="${SENTINEL_PORT:-5052}"
+ARCHIVIST_PORT="${ARCHIVIST_PORT:-5053}"
+SHRINE_PORT="${SHRINE_PORT:-5054}"
+CODEX_PHASE="${CODEX_PHASE:-Phase XX}"
+
 # Define Sentinel Node directory
 SENTINEL_DIR="$HOME/sentinel_client"
 LOG_FILE="$SENTINEL_DIR/update_log.txt"
@@ -18,11 +34,18 @@ echo_log() {
 }
 
 echo_log "🚀 Starting Sentinel Client Update & AI Synchronization..."
+echo_log "📘 Phase: $CODEX_PHASE"
+echo_log "🔌 Local parity ports: CodexJr=$CODEXJR_PORT Sentinel=$SENTINEL_PORT Archivist=$ARCHIVIST_PORT Shrine=$SHRINE_PORT"
 
 # 🛠 Step 1: Ensure Git is Installed
 if ! command -v git &> /dev/null; then
     echo_log "🔹 Git is not installed. Installing now..."
-    sudo apt update && sudo apt install -y git
+    if command -v apt &> /dev/null; then
+        sudo apt update && sudo apt install -y git
+    else
+        echo_log "❌ Unsupported package manager for automatic git installation. Install git manually and retry."
+        exit 1
+    fi
 else
     echo_log "✅ Git is already installed."
 fi
@@ -82,7 +105,12 @@ echo_log "✅ Security settings applied. Blockchain authentication enabled."
 REQUIRED_PYTHON="Python 3.10"
 if ! python3 -c "import sys; assert sys.version_info.major == 3 and sys.version_info.minor == 10" &>/dev/null; then
     echo_log "🔹 Installing $REQUIRED_PYTHON..."
-    sudo apt install -y python3.10 python3.10-venv python3.10-dev
+    if command -v apt &> /dev/null; then
+        sudo apt install -y python3.10 python3.10-venv python3.10-dev
+    else
+        echo_log "❌ Unsupported package manager for automatic Python installation. Install Python 3.10 manually and retry."
+        exit 1
+    fi
 else
     echo_log "✅ $REQUIRED_PYTHON is already installed."
 fi
@@ -118,5 +146,30 @@ else
 fi
 
 echo_log "🔍 GitHub API Response: $GITHUB_RESPONSE"
+
+# 🛠 Step 11: Local parity health sweep
+health_check() {
+    local service="$1"
+    local port="$2"
+    local response
+
+    if ! response=$(curl -fsS "http://localhost:${port}/healthz"); then
+        echo_log "❌ ${service} health check failed at http://localhost:${port}/healthz"
+        return 1
+    fi
+
+    if [[ "$response" == *'"status":"ok"'* && "$response" == *"\"service\":\"${service}\""* && "$response" == *"\"phase\":\"${CODEX_PHASE}\""* && "$response" == *"\"port\":${port}"* ]]; then
+        echo_log "✅ ${service} health check passed on port ${port}: $response"
+    else
+        echo_log "❌ ${service} health response shape mismatch on port ${port}: $response"
+        return 1
+    fi
+}
+
+echo_log "🩺 Running localhost parity health sweep..."
+health_check "CodexJr" "$CODEXJR_PORT"
+health_check "Sentinel" "$SENTINEL_PORT"
+health_check "Archivist" "$ARCHIVIST_PORT"
+health_check "Shrine" "$SHRINE_PORT"
 
 echo_log "✅ Sentinel Client Update & AI Synchronization Completed Successfully! 🚀"
