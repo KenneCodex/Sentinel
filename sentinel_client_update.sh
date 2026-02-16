@@ -174,6 +174,9 @@ fi
 echo_log "🔍 GitHub API Response: $GITHUB_RESPONSE"
 
 # 🛠 Step 11: Local parity health sweep
+# NOTE: Health checks use -fsS flags for strict error handling (fail on HTTP/connection errors).
+# Other curl calls in this script use -s because they are best-effort/diagnostic.
+# Health checks are non-fatal - failures are logged but don't abort the script.
 health_check() {
     local service="$1"
     local port="$2"
@@ -215,9 +218,9 @@ health_check() {
 }
 
 echo_log "🩺 Running localhost parity health sweep..."
-health_check "CodexJr" "$CODEXJR_PORT"
-health_check "Sentinel" "$SENTINEL_PORT"
-health_check "Archivist" "$ARCHIVIST_PORT"
-health_check "Shrine" "$SHRINE_PORT"
+health_check "CodexJr" "$CODEXJR_PORT" || true
+health_check "Sentinel" "$SENTINEL_PORT" || true
+health_check "Archivist" "$ARCHIVIST_PORT" || true
+health_check "Shrine" "$SHRINE_PORT" || true
 
 echo_log "✅ Sentinel Client Update & AI Synchronization Completed Successfully! 🚀"

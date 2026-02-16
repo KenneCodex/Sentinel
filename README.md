@@ -4,7 +4,7 @@ This repository currently centers on automation/docs artifacts for the Sentinel 
 
 ## Local parity baseline
 
-To keep parity with the broader multi-service effort, local environments should use these environment variables (in `.env` or exported shell env):
+To keep parity with the broader multi-service effort, local environments should use these environment variables (in `.env` or exported shell env). See `.env.example` for a template:
 
 - `CODEXJR_PORT=5051`
 - `SENTINEL_PORT=5052`
