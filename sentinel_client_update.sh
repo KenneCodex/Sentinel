@@ -5,6 +5,48 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Safely load local environment variables from .env when available
+safe_load_dotenv() {
+    local dotenv_file="$1"
+
+    # Read .env file line by line, allowing only KEY=VALUE assignments
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Trim leading and trailing whitespace
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+
+        # Skip empty lines and comments
+        [[ -z "$line" || "$line" == \#* ]] && continue
+
+        # Allow optional leading "export "
+        if [[ "$line" == export* ]]; then
+            line="${line#export }"
+        fi
+
+        # Only accept simple KEY=VALUE pairs where KEY is a valid variable name
+        if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            local key="${BASH_REMATCH[1]}"
+            local value="${BASH_REMATCH[2]}"
+            export "$key=$value"
+        else
+            echo "Warning: Skipping invalid line in $dotenv_file: $line" >&2
+        fi
+    done < "$dotenv_file"
+}
+
+# Load local environment variables when available (without overriding explicit shell exports)
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    safe_load_dotenv "$SCRIPT_DIR/.env"
+fi
+
+CODEXJR_PORT="${CODEXJR_PORT:-5051}"
+SENTINEL_PORT="${SENTINEL_PORT:-5052}"
+ARCHIVIST_PORT="${ARCHIVIST_PORT:-5053}"
+SHRINE_PORT="${SHRINE_PORT:-5054}"
+CODEX_PHASE="${CODEX_PHASE:-Phase Unknown}"
+
 # Define Sentinel Node directory
 SENTINEL_DIR="$HOME/sentinel_client"
 LOG_FILE="$SENTINEL_DIR/update_log.txt"
@@ -18,11 +60,18 @@ echo_log() {
 }
 
 echo_log "🚀 Starting Sentinel Client Update & AI Synchronization..."
+echo_log "📘 Phase: $CODEX_PHASE"
+echo_log "🔌 Local parity ports: CodexJr=$CODEXJR_PORT Sentinel=$SENTINEL_PORT Archivist=$ARCHIVIST_PORT Shrine=$SHRINE_PORT"
 
 # 🛠 Step 1: Ensure Git is Installed
 if ! command -v git &> /dev/null; then
     echo_log "🔹 Git is not installed. Installing now..."
-    sudo apt update && sudo apt install -y git
+    if command -v apt &> /dev/null; then
+        sudo apt update && sudo apt install -y git
+    else
+        echo_log "❌ Unsupported package manager for automatic git installation. Install git manually and retry."
+        exit 1
+    fi
 else
     echo_log "✅ Git is already installed."
 fi
@@ -82,7 +131,12 @@ echo_log "✅ Security settings applied. Blockchain authentication enabled."
 REQUIRED_PYTHON="Python 3.10"
 if ! python3 -c "import sys; assert sys.version_info.major == 3 and sys.version_info.minor == 10" &>/dev/null; then
     echo_log "🔹 Installing $REQUIRED_PYTHON..."
-    sudo apt install -y python3.10 python3.10-venv python3.10-dev
+    if command -v apt &> /dev/null; then
+        sudo apt install -y python3.10 python3.10-venv python3.10-dev
+    else
+        echo_log "❌ Unsupported package manager for automatic Python installation. Install Python 3.10 manually and retry."
+        exit 1
+    fi
 else
     echo_log "✅ $REQUIRED_PYTHON is already installed."
 fi
@@ -118,5 +172,55 @@ else
 fi
 
 echo_log "🔍 GitHub API Response: $GITHUB_RESPONSE"
+
+# 🛠 Step 11: Local parity health sweep
+# NOTE: Health checks use -fsS flags for strict error handling (fail on HTTP/connection errors).
+# Other curl calls in this script use -s because they are best-effort/diagnostic.
+# Health checks are non-fatal - failures are logged but don't abort the script.
+health_check() {
+    local service="$1"
+    local port="$2"
+    local response
+
+    # NOTE: Health checks are intentionally strict: use -fsS so HTTP/connection errors
+    # fail the script under `set -e`. Other curl calls in this script use -s because
+    # they are best-effort/diagnostic and should not abort the overall workflow.
+    if [[ ! "$port" =~ ^[0-9]+$ ]]; then
+        echo_log "❌ Invalid port: $port"
+        return 1
+    fi
+
+    if ! response=$(curl -fsS --connect-timeout 5 --max-time 10 "http://localhost:${port}/healthz"); then
+        echo_log "❌ ${service} health check failed at http://localhost:${port}/healthz"
+        return 1
+    local body
+    local http_status
+
+    if ! response=$(curl -sS -w "%{http_code}" "http://localhost:${port}/healthz"); then
+        echo_log "❌ ${service} health check request failed at http://localhost:${port}/healthz"
+        return 1
+    fi
+
+    http_status="${response: -3}"
+    body="${response::-3}"
+
+    if [ "$http_status" != "200" ]; then
+        echo_log "❌ ${service} health check returned HTTP ${http_status} at http://localhost:${port}/healthz: ${body}"
+        return 1
+    fi
+
+    if [[ "$body" == *'"status":"ok"'* && "$body" == *"\"service\":\"${service}\""* && "$body" == *"\"phase\":\"${CODEX_PHASE}\""* && "$body" == *"\"port\":${port}"* ]]; then
+        echo_log "✅ ${service} health check passed on port ${port}: ${body}"
+    else
+        echo_log "❌ ${service} health response shape mismatch on port ${port}: ${body}"
+        return 1
+    fi
+}
+
+echo_log "🩺 Running localhost parity health sweep..."
+health_check "CodexJr" "$CODEXJR_PORT" || true
+health_check "Sentinel" "$SENTINEL_PORT" || true
+health_check "Archivist" "$ARCHIVIST_PORT" || true
+health_check "Shrine" "$SHRINE_PORT" || true
 
 echo_log "✅ Sentinel Client Update & AI Synchronization Completed Successfully! 🚀"
