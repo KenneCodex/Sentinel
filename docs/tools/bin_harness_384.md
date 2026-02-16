@@ -37,7 +37,7 @@ python tools/bin_harness_384.py random --alphabet-file data/hebrew_22.txt --n 72
 ### Exhaustive 22 choose 3 lane
 
 ```bash
-python tools/bin_harness_384.py exhaustive --alphabet-file data/hebrew_22.txt --dataset-id HEB_ALL_TRIPLETS_22C2C3 --include-counts
+python tools/bin_harness_384.py exhaustive --alphabet-file data/hebrew_22.txt --dataset-id HEB_ALL_TRIPLETS_22C3 --include-counts
 ```
 
 ### Observed subset from file
