@@ -22,6 +22,9 @@ SentinelAi - Advanced AI automation and monitoring platform
 # Prioritize a task
 ./ai-task-prioritization.sh TASK-001 "Task description" 9 10 3 1 9
 
+# Summarize the last 100 prioritized tasks
+./ai-task-prioritization.sh --summary 100
+
 # Validate deployment prerequisites
 ./multi-host-deployment.sh validate
 ```

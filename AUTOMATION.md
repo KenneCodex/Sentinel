@@ -54,6 +54,9 @@ Intelligent task prioritization system using a weighted scoring algorithm:
 
 # Example:
 ./ai-task-prioritization.sh TASK-001 "Fix critical bug" 9 10 3 1 9
+
+# Summarize the most recent task prioritization records (default 100)
+./ai-task-prioritization.sh --summary 100
 ```
 
 **GitHub Workflow:** `.github/workflows/ai-task-prioritization.yml`

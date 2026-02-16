@@ -141,6 +141,55 @@ analyze_tasks_from_json() {
     log_message "Task prioritization completed. Audit log: $AUDIT_LOG_FILE"
 }
 
+# Function to summarize recently prioritized tasks
+summarize_recent_tasks() {
+    local limit=${1:-100}
+
+    if ! [[ "$limit" =~ ^[0-9]+$ ]] || [[ "$limit" -le 0 ]]; then
+        log_message "ERROR: Summary limit must be a positive integer"
+        return 1
+    fi
+
+    if ! command -v jq &> /dev/null; then
+        log_message "ERROR: jq is required to summarize task logs"
+        return 1
+    fi
+
+    local -a files
+    mapfile -t files < <(find "$AUDIT_LOG_DIR" -maxdepth 1 -type f -name 'task-prioritization-*.json' | sort -r)
+
+    if [[ ${#files[@]} -eq 0 ]]; then
+        log_message "No task prioritization logs found in $AUDIT_LOG_DIR"
+        return 0
+    fi
+
+    jq -s --argjson limit "$limit" '
+      [ .[]
+        | if type == "array" then .[] else . end
+        | select(type == "object" and has("task_id") and has("task_name") and has("priority_score") and has("priority_level") and has("timestamp"))
+      ]
+      | sort_by(.timestamp)
+      | reverse
+      | .[:$limit] as $tasks
+      | {
+          requested_limit: $limit,
+          tasks_summarized: ($tasks | length),
+          by_priority: (
+            $tasks
+            | group_by(.priority_level)
+            | map({priority_level: .[0].priority_level, count: length})
+            | sort_by(.priority_level)
+          ),
+          average_priority_score: (
+            if ($tasks | length) == 0 then 0
+            else (($tasks | map(.priority_score) | add) / ($tasks | length))
+            end
+          ),
+          tasks: $tasks
+        }
+    ' "${files[@]}"
+}
+
 # Function to generate priority configuration
 generate_priority_config() {
     log_message "Generating priority configuration..."
@@ -215,7 +264,12 @@ EOF
 # Main execution
 main() {
     log_message "=== AI-Driven Task Prioritization Model ==="
-    
+
+    if [[ "$1" == "--summary" ]]; then
+        summarize_recent_tasks "${2:-100}"
+        return
+    fi
+
     # Check for bc dependency
     if ! command -v bc &> /dev/null; then
         log_message "ERROR: 'bc' is required but not installed. Please install it:"
@@ -223,12 +277,12 @@ main() {
         log_message "  macOS: brew install bc"
         exit 1
     fi
-    
+
     # Check if config exists, if not create it
     if [[ ! -f "$PRIORITY_CONFIG_FILE" ]]; then
         generate_priority_config
     fi
-    
+
     # Example usage: prioritize a single task
     if [[ $# -eq 7 ]]; then
         prioritize_task "$@"
@@ -236,6 +290,7 @@ main() {
         analyze_tasks_from_json "$1"
     else
         echo "Usage:"
+        echo "  Summary: $0 --summary [count]"
         echo "  Single task: $0 <task_id> <task_name> <urgency> <impact> <effort> <dependencies> <risk>"
         echo "  Multiple tasks: $0 <json_file>"
         echo ""
