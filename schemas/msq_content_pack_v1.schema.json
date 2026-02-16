@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kennecodex.dev/schemas/msq_content_pack_v1.schema.json",
+  "title": "MagicSquare Content Pack v1",
+  "type": "object",
+  "required": ["pack_id", "version", "created_at", "rulesets", "rng_profiles", "ai_tuning"],
+  "properties": {
+    "pack_id": { "type": "string" },
+    "version": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "rulesets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["ruleset_id", "name", "size", "target_sum", "tile_pool", "lines", "allowed_moves", "spawn_rules", "scoring", "idle", "progression"],
+        "properties": {
+          "ruleset_id": { "type": "string" },
+          "name": { "type": "string" },
+          "size": { "type": "integer", "minimum": 3, "maximum": 9 },
+          "target_sum": { "type": "integer" },
+          "tile_pool": {
+            "type": "object",
+            "required": ["min", "max", "mode"],
+            "properties": {
+              "min": { "type": "integer" },
+              "max": { "type": "integer" },
+              "mode": { "type": "string", "enum": ["unique_in_grid", "with_replacement"] }
+            },
+            "additionalProperties": false
+          },
+          "lines": { "type": "string", "enum": ["rows_cols_diagonals", "rows_cols"] },
+          "allowed_moves": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["swap_adjacent", "rotate_row", "rotate_col", "lock_tile"] }
+          },
+          "lock_rules": {
+            "type": "object",
+            "properties": {
+              "max_locks": { "type": "integer", "minimum": 0, "maximum": 9 },
+              "lock_cost": { "type": "integer", "minimum": 0 },
+              "unlock_cost": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "spawn_rules": {
+            "type": "object",
+            "required": ["spawn_mode", "spawn_count_per_tick", "rng_profile_id"],
+            "properties": {
+              "spawn_mode": { "type": "string", "enum": ["refill_blanks"] },
+              "spawn_count_per_tick": { "type": "integer", "minimum": 0, "maximum": 9 },
+              "rng_profile_id": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
+          "scoring": {
+            "type": "object",
+            "required": ["complete_line_bonus", "near_miss_bonus", "combo_multiplier"],
+            "properties": {
+              "complete_line_bonus": { "type": "integer", "minimum": 0 },
+              "near_miss_bonus": { "type": "integer", "minimum": 0 },
+              "combo_multiplier": {
+                "type": "object",
+                "required": ["enabled", "window_sec", "growth"],
+                "properties": {
+                  "enabled": { "type": "boolean" },
+                  "window_sec": { "type": "integer", "minimum": 1 },
+                  "growth": { "type": "number", "minimum": 0 }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          "idle": {
+            "type": "object",
+            "required": ["tick_sec", "base_SE", "base_CE", "base_TN", "prox_scale", "blank_penalty"],
+            "properties": {
+              "tick_sec": { "type": "integer", "minimum": 1, "maximum": 60 },
+              "base_SE": { "type": "number", "minimum": 0 },
+              "base_CE": { "type": "number", "minimum": 0 },
+              "base_TN": { "type": "number", "minimum": 0 },
+              "prox_scale": { "type": "integer", "minimum": 1 },
+              "blank_penalty": { "type": "number", "minimum": 0, "maximum": 1 }
+            },
+            "additionalProperties": false
+          },
+          "progression": {
+            "type": "object",
+            "required": ["unlock_next_ruleset_at_level", "level_xp_curve", "xp_per_complete_line"],
+            "properties": {
+              "unlock_next_ruleset_at_level": { "type": "integer", "minimum": 1 },
+              "level_xp_curve": { "type": "string", "enum": ["linear"] },
+              "xp_per_complete_line": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "rng_profiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["rng_profile_id", "description", "weights"],
+        "properties": {
+          "rng_profile_id": { "type": "string" },
+          "description": { "type": "string" },
+          "weights": { "type": "string", "enum": ["uniform"] }
+        },
+        "additionalProperties": false
+      }
+    },
+    "ai_tuning": {
+      "type": "object",
+      "required": ["enabled", "policy_id", "guardrails"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "policy_id": { "type": "string" },
+        "guardrails": {
+          "type": "object",
+          "required": ["max_difficulty_step_per_session", "min_runs_before_personalization", "no_sensitive_inference", "bounded_changes_only"],
+          "properties": {
+            "max_difficulty_step_per_session": { "type": "integer", "minimum": 0, "maximum": 3 },
+            "min_runs_before_personalization": { "type": "integer", "minimum": 0, "maximum": 20 },
+            "no_sensitive_inference": { "type": "boolean" },
+            "bounded_changes_only": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

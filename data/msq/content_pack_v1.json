@@ -1,0 +1,49 @@
+{
+  "pack_id": "PACK-MSQ-0001",
+  "version": "1.0.0",
+  "created_at": "2026-02-16T00:00:00Z",
+  "rulesets": [
+    {
+      "ruleset_id": "RS-MSQ-0001",
+      "name": "Lo Shu Idle",
+      "size": 3,
+      "target_sum": 15,
+      "tile_pool": { "min": 1, "max": 9, "mode": "unique_in_grid" },
+      "lines": "rows_cols_diagonals",
+      "allowed_moves": ["swap_adjacent", "rotate_row", "rotate_col", "lock_tile"],
+      "lock_rules": { "max_locks": 2, "lock_cost": 10, "unlock_cost": 5 },
+      "spawn_rules": { "spawn_mode": "refill_blanks", "spawn_count_per_tick": 1, "rng_profile_id": "RNG-PROFILE-DEFAULT" },
+      "scoring": {
+        "complete_line_bonus": 100,
+        "near_miss_bonus": 10,
+        "combo_multiplier": { "enabled": true, "window_sec": 8, "growth": 0.15 }
+      },
+      "idle": {
+        "tick_sec": 1,
+        "base_SE": 1.0,
+        "base_CE": 5.0,
+        "base_TN": 0.5,
+        "prox_scale": 7,
+        "blank_penalty": 0.6
+      },
+      "progression": {
+        "unlock_next_ruleset_at_level": 5,
+        "level_xp_curve": "linear",
+        "xp_per_complete_line": 1
+      }
+    }
+  ],
+  "rng_profiles": [
+    { "rng_profile_id": "RNG-PROFILE-DEFAULT", "description": "Uniform tile draws within tile_pool constraints.", "weights": "uniform" }
+  ],
+  "ai_tuning": {
+    "enabled": true,
+    "policy_id": "POLICY-BANDIT-0001",
+    "guardrails": {
+      "max_difficulty_step_per_session": 1,
+      "min_runs_before_personalization": 3,
+      "no_sensitive_inference": true,
+      "bounded_changes_only": true
+    }
+  }
+}
