@@ -178,7 +178,14 @@ summarize_recent_tasks() {
             $tasks
             | group_by(.priority_level)
             | map({priority_level: .[0].priority_level, count: length})
-            | sort_by(.priority_level)
+            | sort_by(
+                if .priority_level == "CRITICAL" then 0
+                elif .priority_level == "HIGH" then 1
+                elif .priority_level == "MEDIUM" then 2
+                elif .priority_level == "LOW" then 3
+                else 4
+                end
+              )
           ),
           average_priority_score: (
             if ($tasks | length) == 0 then 0
