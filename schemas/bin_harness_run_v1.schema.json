@@ -61,5 +61,5 @@
     "canon_version": { "type": "string" },
     "seed": { "type": ["integer", "null"] }
   },
-  "additionalProperties": true
+  "additionalProperties": false
 }
