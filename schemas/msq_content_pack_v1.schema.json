@@ -95,7 +95,7 @@
             "additionalProperties": false
           }
         },
-        "additionalProperties": true
+        "additionalProperties": false
       }
     },
     "rng_profiles": {
