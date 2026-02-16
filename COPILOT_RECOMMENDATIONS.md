@@ -293,7 +293,7 @@ Min Drift Score: 0.027
 **Implementation Steps:**
 
 1. **Revoke Exposed Token**
-   - Immediately revoke `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` via GitHub Settings
+   - Immediately revoke `<REDACTED_GITHUB_PAT>` via GitHub Settings
    - Generate new fine-grained personal access token with minimal scopes
 
 2. **Implement Secrets Management**
