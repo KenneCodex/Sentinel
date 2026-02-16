@@ -4,7 +4,7 @@ This repository currently centers on automation/docs artifacts for the Sentinel 
 
 ## Local parity baseline
 
-To keep parity with the broader multi-service effort, local environments should use these environment variables (in `.env` or exported shell env):
+To keep parity with the broader multi-service effort, local environments should use these environment variables (in `.env` or exported shell env). See `.env.example` for a template:
 
 - `CODEXJR_PORT=5051`
 - `SENTINEL_PORT=5052`
@@ -25,7 +25,7 @@ All services are expected to expose `GET /healthz` and return:
 1. Loads `.env` values when present.
 2. Logs local parity phase/ports.
 3. Performs safer install checks when auto-installing `git`/`python3.10`.
-4. Runs a localhost `/healthz` sweep on ports `5051-5054` and validates response shape.
+4. Runs a localhost `/healthz` check on each of the four configured service ports (5051-5054) and validates response shape.
 
 ## Quick check
 

@@ -9,17 +9,36 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Load local environment variables when available (without overriding explicit shell exports)
 if [ -f "$SCRIPT_DIR/.env" ]; then
-    # shellcheck disable=SC1091
-    set -a
-    source "$SCRIPT_DIR/.env"
-    set +a
+    # Read .env line by line and only export variables that are not already set
+    while IFS='=' read -r var_name var_value || [ -n "$var_name" ]; do
+        # Trim whitespace
+        var_name="${var_name#"${var_name%%[![:space:]]*}"}"
+        var_name="${var_name%"${var_name##*[![:space:]]}"}"
+        # Skip empty lines and comments
+        case "$var_name" in
+            ''|\#*) continue ;;
+        esac
+        # Remove leading 'export ' if present
+        if [[ "$var_name" == export* ]]; then
+            var_name="${var_name#export }"
+            var_name="${var_name#"${var_name%%[![:space:]]*}"}"
+        fi
+        # Extract key and value
+        if [[ "$var_name" =~ ^([A-Za-z_][A-Za-z0-9_]*)$ ]]; then
+            key="$var_name"
+            # Only set the variable if it is not already defined in the environment
+            if [ -z "${!key+x}" ]; then
+                export "$key=$var_value"
+            fi
+        fi
+    done < "$SCRIPT_DIR/.env"
 fi
 
 CODEXJR_PORT="${CODEXJR_PORT:-5051}"
 SENTINEL_PORT="${SENTINEL_PORT:-5052}"
 ARCHIVIST_PORT="${ARCHIVIST_PORT:-5053}"
 SHRINE_PORT="${SHRINE_PORT:-5054}"
-CODEX_PHASE="${CODEX_PHASE:-Phase XX}"
+CODEX_PHASE="${CODEX_PHASE:-Phase Unknown}"
 
 # Define Sentinel Node directory
 SENTINEL_DIR="$HOME/sentinel_client"
@@ -148,6 +167,9 @@ fi
 echo_log "🔍 GitHub API Response: $GITHUB_RESPONSE"
 
 # 🛠 Step 11: Local parity health sweep
+# NOTE: Health checks use -fsS flags for strict error handling (fail on HTTP/connection errors).
+# Other curl calls in this script use -s because they are best-effort/diagnostic.
+# Health checks are non-fatal - failures are logged but don't abort the script.
 health_check() {
     local service="$1"
     local port="$2"
@@ -158,7 +180,7 @@ health_check() {
         return 1
     fi
 
-    if ! response=$(curl -fsS "http://localhost:${port}/healthz"); then
+    if ! response=$(curl -fsS --connect-timeout 5 --max-time 10 "http://localhost:${port}/healthz"); then
         echo_log "❌ ${service} health check failed at http://localhost:${port}/healthz"
         return 1
     fi
@@ -176,9 +198,9 @@ health_check() {
 }
 
 echo_log "🩺 Running localhost parity health sweep..."
-health_check "CodexJr" "$CODEXJR_PORT"
-health_check "Sentinel" "$SENTINEL_PORT"
-health_check "Archivist" "$ARCHIVIST_PORT"
-health_check "Shrine" "$SHRINE_PORT"
+health_check "CodexJr" "$CODEXJR_PORT" || true
+health_check "Sentinel" "$SENTINEL_PORT" || true
+health_check "Archivist" "$ARCHIVIST_PORT" || true
+health_check "Shrine" "$SHRINE_PORT" || true
 
 echo_log "✅ Sentinel Client Update & AI Synchronization Completed Successfully! 🚀"
