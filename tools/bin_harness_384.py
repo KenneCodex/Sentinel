@@ -64,18 +64,22 @@ def shannon_entropy(counts: List[int]) -> float:
 
 def gini_coefficient(counts: List[int]) -> float:
     n = len(counts)
-    if n == 0:
+    if n < 2:
         return 0.0
 
-    mean = sum(counts) / n
-    if mean == 0.0:
+    total = sum(counts)
+    if total == 0.0:
         return 0.0
 
-    mad = 0.0
-    for i in counts:
-        for j in counts:
-            mad += abs(i - j)
-    return mad / (2 * n * n * mean)
+    # O(n log n) implementation is more efficient than O(n^2).
+    sorted_counts = sorted(counts)
+
+    # Using the formula for Gini coefficient based on sorted values:
+    # G = (sum_i (2i - n + 1)x_i) / (n * sum_i x_i) for 0-indexed i.
+    numerator = sum((2 * i - n + 1) * val for i, val in enumerate(sorted_counts))
+    denominator = n * total
+
+    return numerator / denominator
 
 
 def ranked_bins(counts: List[int], k: int = 10) -> List[Tuple[int, int]]:
