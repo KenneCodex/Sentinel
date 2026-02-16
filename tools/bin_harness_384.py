@@ -149,18 +149,16 @@ def generate_exhaustive_triplets(alphabet: List[str]) -> Iterable[str]:
         yield f"{a}-{b}-{c}"
 
 
-def generate_random_triplets(alphabet: List[str], n: int, rng: random.Random) -> List[str]:
+def generate_random_triplets(alphabet: List[str], n: int, rng: random.Random) -> Iterable[str]:
     if n < 0:
         raise ValueError("n must be >= 0")
     if len(alphabet) < 3:
         raise ValueError("alphabet must contain at least 3 symbols")
 
-    out: List[str] = []
     for _ in range(n):
         a, b, c = rng.sample(alphabet, 3)
-        tokens = sorted([a, b, c])
-        out.append("-".join(tokens))
-    return out
+        tokens = sorted([normalize_text(a), normalize_text(b), normalize_text(c)])
+        yield "-".join(tokens)
 
 
 def compute_run(
