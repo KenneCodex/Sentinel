@@ -48,13 +48,33 @@ log_warning() {
     ((WARNINGS++))
 }
 
+# Function to get command version information in a robust way
+get_command_version() {
+    local cmd="$1"
+    local version_output
+
+    # Try a few common version flags
+    for flag in --version -V -v; do
+        # Capture both stdout and stderr, ignore command failure
+        version_output=$("$cmd" "$flag" 2>&1 || true)
+        if [[ -n "$version_output" ]]; then
+            echo "$version_output" | head -n1
+            return 0
+        fi
+    done
+
+    echo "version information not available"
+    return 1
+}
+
 # Function to check command availability
 check_command() {
     local cmd=$1
     local required=${2:-false}
     
     if command -v "$cmd" &> /dev/null; then
-        local version=$(${cmd} --version 2>&1 | head -n1 || echo "unknown")
+        local version
+        version=$(get_command_version "$cmd")
         log_success "$cmd is installed (${version})"
         return 0
     else
