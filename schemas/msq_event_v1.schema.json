@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kennecodex.dev/schemas/msq_event_v1.schema.json",
+  "title": "MagicSquare Telemetry Event v1 (JSONL)",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_id",
+    "created_at",
+    "player_id",
+    "session_id",
+    "event_type",
+    "ruleset_id",
+    "state_id",
+    "bin_384"
+  ],
+  "properties": {
+    "schema_version": { "const": "msq_event_v1" },
+    "event_id": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "player_id": { "type": "string" },
+    "session_id": { "type": "string" },
+    "event_type": {
+      "type": "string",
+      "enum": ["session_start", "move", "line_complete", "hint_used", "session_end"]
+    },
+    "ruleset_id": { "type": "string" },
+    "state_id": { "type": "string" },
+    "bin_384": { "type": "integer", "minimum": 0, "maximum": 383 },
+
+    "move": {
+      "type": ["object", "null"],
+      "properties": {
+        "move_type": { "type": "string" },
+        "details": { "type": "object" }
+      }
+    },
+    "metrics": {
+      "type": ["object", "null"],
+      "properties": {
+        "time_in_node_sec": { "type": "number", "minimum": 0 },
+        "attempt_count": { "type": "integer", "minimum": 0 },
+        "near_miss_count": { "type": "integer", "minimum": 0 },
+        "lines_completed": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "additionalProperties": false
+}
