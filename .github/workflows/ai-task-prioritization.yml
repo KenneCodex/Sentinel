@@ -1,0 +1,143 @@
+name: AI Task Prioritization
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+  workflow_dispatch:
+    inputs:
+      task_id:
+        description: 'Task ID'
+        required: true
+      task_name:
+        description: 'Task name/description'
+        required: true
+      urgency:
+        description: 'Urgency (1-10)'
+        required: true
+        default: '5'
+      impact:
+        description: 'Impact (1-10)'
+        required: true
+        default: '5'
+      effort:
+        description: 'Effort (1-10)'
+        required: true
+        default: '5'
+      dependencies:
+        description: 'Dependencies (0-5)'
+        required: true
+        default: '0'
+      risk:
+        description: 'Risk (1-10)'
+        required: true
+        default: '5'
+
+jobs:
+  prioritize-task:
+    name: Prioritize Task
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup prioritization environment
+        run: |
+          chmod +x ./ai-task-prioritization.sh
+          mkdir -p .audit-logs
+      
+      - name: Generate priority configuration
+        run: |
+          ./ai-task-prioritization.sh
+          echo "Priority configuration generated"
+      
+      - name: Calculate task priority (Manual Trigger)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          ./ai-task-prioritization.sh \
+            "${{ github.event.inputs.task_id }}" \
+            "${{ github.event.inputs.task_name }}" \
+            "${{ github.event.inputs.urgency }}" \
+            "${{ github.event.inputs.impact }}" \
+            "${{ github.event.inputs.effort }}" \
+            "${{ github.event.inputs.dependencies }}" \
+            "${{ github.event.inputs.risk }}"
+      
+      - name: Calculate task priority (Issue)
+        if: github.event_name == 'issues'
+        run: |
+          # Extract priority indicators from issue labels and content
+          # This is a simplified example - in production, parse issue content
+          
+          URGENCY=5
+          IMPACT=5
+          EFFORT=5
+          DEPENDENCIES=0
+          RISK=5
+          
+          # Check for priority labels
+          if echo "${{ join(github.event.issue.labels.*.name, ' ') }}" | grep -q "critical"; then
+            URGENCY=9
+            IMPACT=9
+            RISK=9
+          elif echo "${{ join(github.event.issue.labels.*.name, ' ') }}" | grep -q "high"; then
+            URGENCY=7
+            IMPACT=7
+            RISK=7
+          fi
+          
+          # Check for effort labels
+          if echo "${{ join(github.event.issue.labels.*.name, ' ') }}" | grep -q "effort:high"; then
+            EFFORT=8
+          elif echo "${{ join(github.event.issue.labels.*.name, ' ') }}" | grep -q "effort:low"; then
+            EFFORT=3
+          fi
+          
+          ./ai-task-prioritization.sh \
+            "ISSUE-${{ github.event.issue.number }}" \
+            "${{ github.event.issue.title }}" \
+            "$URGENCY" \
+            "$IMPACT" \
+            "$EFFORT" \
+            "$DEPENDENCIES" \
+            "$RISK"
+      
+      - name: Upload prioritization results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: task-prioritization-results
+          path: |
+            .audit-logs/task-prioritization-*.json
+            .audit-logs/priority-config.json
+          if-no-files-found: warn
+      
+      - name: Create prioritization summary
+        if: always()
+        run: |
+          echo "## Task Prioritization Summary" > priority-summary.md
+          echo "" >> priority-summary.md
+          echo "Task prioritization completed using AI-driven model" >> priority-summary.md
+          echo "" >> priority-summary.md
+          echo "### Details" >> priority-summary.md
+          echo "- Workflow: AI Task Prioritization" >> priority-summary.md
+          echo "- Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> priority-summary.md
+          echo "- Trigger: ${{ github.event_name }}" >> priority-summary.md
+          echo "" >> priority-summary.md
+          
+          # Check if any prioritization logs were created
+          if ls .audit-logs/task-prioritization-*.json 1> /dev/null 2>&1; then
+            echo "### Priority Score" >> priority-summary.md
+            echo "See artifact for detailed prioritization results" >> priority-summary.md
+          else
+            echo "No prioritization logs generated" >> priority-summary.md
+          fi
+      
+      - name: Upload summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: priority-summary
+          path: priority-summary.md
