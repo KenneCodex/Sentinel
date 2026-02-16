@@ -153,6 +153,9 @@ health_check() {
     local port="$2"
     local response
 
+    # NOTE: Health checks are intentionally strict: use -fsS so HTTP/connection errors
+    # fail the script under `set -e`. Other curl calls in this script use -s because
+    # they are best-effort/diagnostic and should not abort the overall workflow.
     if [[ ! "$port" =~ ^[0-9]+$ ]]; then
         echo_log "❌ Invalid port: $port"
         return 1
