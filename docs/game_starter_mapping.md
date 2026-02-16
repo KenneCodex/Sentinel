@@ -9,8 +9,8 @@ This repository does not currently contain game content assets (sprites, texture
 - `ai-task-prioritization.sh`: weighted task scoring for backlog triage.
 - `multi-host-deployment.sh`: deployment preflight and host automation.
 - `sentinel_client_update.sh`: update workflow helper.
-- `ai-task-prioritization.sh`, `multi-host-deployment.sh`, and `cli-validation.sh` write audit-oriented outputs suitable for operational traceability.
 
+These automation scripts write audit-oriented outputs suitable for operational traceability.
 ### Documentation/process assets
 - `AUTOMATION.md`: runbooks and automation design context.
 - `COPILOT_RECOMMENDATIONS.md`: collaboration and AI-assist workflow guidance.
