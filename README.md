@@ -32,6 +32,7 @@ SentinelAi - Advanced AI automation and monitoring platform
 - [**Copilot Recommendations**](COPILOT_RECOMMENDATIONS.md) - AI integration strategies
 - [**Pull Request Template**](.github/PULL_REQUEST_TEMPLATE.md) - Standardized PR format
 - [**Audit Logs**](.audit-logs/README.md) - Audit logging documentation
+- [**Game Starter Mapping**](docs/game_starter_mapping.md) - Inventory of reusable repo assets and a minimal game-project rollout plan
 
 ## CI/CD Workflows
 
