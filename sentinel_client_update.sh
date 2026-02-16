@@ -153,6 +153,11 @@ health_check() {
     local port="$2"
     local response
 
+    if [[ ! "$port" =~ ^[0-9]+$ ]]; then
+        echo_log "❌ Invalid port: $port"
+        return 1
+    fi
+
     if ! response=$(curl -fsS "http://localhost:${port}/healthz"); then
         echo_log "❌ ${service} health check failed at http://localhost:${port}/healthz"
         return 1
