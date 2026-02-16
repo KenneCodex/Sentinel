@@ -28,13 +28,6 @@ jobs:
           format: gcc
         env:
           SHELLCHECK_OPTS: -x
-      
-      - name: Upload ShellCheck results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: shellcheck-results
-          path: shellcheck-output.txt
 
   shell-script-debug:
     name: Shell Script Debugging
