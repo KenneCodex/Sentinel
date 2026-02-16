@@ -32,7 +32,7 @@ To keep changes small and preserve current repo behavior, treat this as a planni
 
 ## Recommended first steps
 
-1. Keep existing automation scripts unchanged and use them as CI/CD and environment checks while game code is introduced incrementally.
+1. Use existing automation scripts as CI/CD and environment checks, customizing them (especially sentinel_client_update.sh and multi-host-deployment.sh) to point to your project's repository and endpoints.
 2. Add game assets in small batches with clear naming conventions.
 3. Add tests for asset integrity (for example, required files present per level).
 4. Keep deployment and validation scripts as the baseline guardrails while game runtime components are added.
