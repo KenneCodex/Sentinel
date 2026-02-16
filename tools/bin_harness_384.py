@@ -291,7 +291,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     elif args.mode == "exhaustive":
         alphabet = parse_alphabet_file(Path(args.alphabet_file))
-        dataset_id = args.dataset_id.strip() or "HEB_ALL_TRIPLETS_22C2C3"
+        dataset_id = args.dataset_id.strip() or "HEB_ALL_TRIPLETS_22C3"
         run = compute_run(
             dataset_id=dataset_id,
             mode="exhaustive",
