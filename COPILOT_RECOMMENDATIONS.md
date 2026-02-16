@@ -18,7 +18,7 @@ This document provides a comprehensive assessment of the Sentinel repository's c
 
 **Entropy Integrity Assessment:**
 - **Baseline Threshold**: Current system triggers stabilization at drift scores >0.15 (72 Hz frequency reset)
-- **Observed Pattern**: 40% of measurements exceed the stabilization threshold
+- **Observed Pattern**: Approximately 44% (10 of 23) of measurements exceed the stabilization threshold
 - **Concern**: High frequency of stabilization events suggests potential monitoring entropy degradation or overly sensitive thresholds
 
 ### 1.2 CI/CD Guardrails
