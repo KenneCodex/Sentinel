@@ -7,12 +7,38 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Safely load local environment variables from .env when available
+safe_load_dotenv() {
+    local dotenv_file="$1"
+
+    # Read .env file line by line, allowing only KEY=VALUE assignments
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Trim leading and trailing whitespace
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+
+        # Skip empty lines and comments
+        [[ -z "$line" || "$line" == \#* ]] && continue
+
+        # Allow optional leading "export "
+        if [[ "$line" == export* ]]; then
+            line="${line#export }"
+        fi
+
+        # Only accept simple KEY=VALUE pairs where KEY is a valid variable name
+        if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            local key="${BASH_REMATCH[1]}"
+            local value="${BASH_REMATCH[2]}"
+            export "$key=$value"
+        else
+            echo "Warning: Skipping invalid line in $dotenv_file: $line" >&2
+        fi
+    done < "$dotenv_file"
+}
+
 # Load local environment variables when available (without overriding explicit shell exports)
 if [ -f "$SCRIPT_DIR/.env" ]; then
-    # shellcheck disable=SC1091
-    set -a
-    source "$SCRIPT_DIR/.env"
-    set +a
+    safe_load_dotenv "$SCRIPT_DIR/.env"
 fi
 
 CODEXJR_PORT="${CODEXJR_PORT:-5051}"
