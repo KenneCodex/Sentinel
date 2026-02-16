@@ -66,7 +66,13 @@ jobs:
             # Run with debug output
             if [[ -x "$script" ]]; then
               echo "Script is executable, running with debug trace..."
-              bash -x "$script" --help 2>&1 | head -50 || echo "Script execution test completed"
+              if grep -qE -- '(^|\s)(--help|-h)\b' "$script"; then
+                echo "Detected help flag in script; running with --help..."
+                bash -x "$script" --help 2>&1 | head -50 || echo "Script execution test (with --help) completed"
+              else
+                echo "No explicit help flag detected; running without arguments..."
+                bash -x "$script" 2>&1 | head -50 || echo "Script execution test (no-arg) completed"
+              fi
             else
               echo "Script not executable: $script"
             fi
