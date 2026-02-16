@@ -18,8 +18,12 @@ def ensure_parent_dir(path: Path) -> None:
 
 def append_jsonl(path: Path, record: Dict[str, Any]) -> None:
     ensure_parent_dir(path)
-    with path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    # Use a lock file to prevent concurrent write issues.
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    from filelock import FileLock
+    with FileLock(lock_path):
+        with path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 @dataclass
