@@ -7,31 +7,38 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Safely load local environment variables from .env when available
+safe_load_dotenv() {
+    local dotenv_file="$1"
+
+    # Read .env file line by line, allowing only KEY=VALUE assignments
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Trim leading and trailing whitespace
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
+
+        # Skip empty lines and comments
+        [[ -z "$line" || "$line" == \#* ]] && continue
+
+        # Allow optional leading "export "
+        if [[ "$line" == export* ]]; then
+            line="${line#export }"
+        fi
+
+        # Only accept simple KEY=VALUE pairs where KEY is a valid variable name
+        if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            local key="${BASH_REMATCH[1]}"
+            local value="${BASH_REMATCH[2]}"
+            export "$key=$value"
+        else
+            echo "Warning: Skipping invalid line in $dotenv_file: $line" >&2
+        fi
+    done < "$dotenv_file"
+}
+
 # Load local environment variables when available (without overriding explicit shell exports)
 if [ -f "$SCRIPT_DIR/.env" ]; then
-    # Read .env line by line and only export variables that are not already set
-    while IFS='=' read -r var_name var_value || [ -n "$var_name" ]; do
-        # Trim whitespace
-        var_name="${var_name#"${var_name%%[![:space:]]*}"}"
-        var_name="${var_name%"${var_name##*[![:space:]]}"}"
-        # Skip empty lines and comments
-        case "$var_name" in
-            ''|\#*) continue ;;
-        esac
-        # Remove leading 'export ' if present
-        if [[ "$var_name" == export* ]]; then
-            var_name="${var_name#export }"
-            var_name="${var_name#"${var_name%%[![:space:]]*}"}"
-        fi
-        # Extract key and value
-        if [[ "$var_name" =~ ^([A-Za-z_][A-Za-z0-9_]*)$ ]]; then
-            key="$var_name"
-            # Only set the variable if it is not already defined in the environment
-            if [ -z "${!key+x}" ]; then
-                export "$key=$var_value"
-            fi
-        fi
-    done < "$SCRIPT_DIR/.env"
+    safe_load_dotenv "$SCRIPT_DIR/.env"
 fi
 
 CODEXJR_PORT="${CODEXJR_PORT:-5051}"
@@ -175,6 +182,9 @@ health_check() {
     local port="$2"
     local response
 
+    # NOTE: Health checks are intentionally strict: use -fsS so HTTP/connection errors
+    # fail the script under `set -e`. Other curl calls in this script use -s because
+    # they are best-effort/diagnostic and should not abort the overall workflow.
     if [[ ! "$port" =~ ^[0-9]+$ ]]; then
         echo_log "❌ Invalid port: $port"
         return 1
@@ -183,16 +193,26 @@ health_check() {
     if ! response=$(curl -fsS --connect-timeout 5 --max-time 10 "http://localhost:${port}/healthz"); then
         echo_log "❌ ${service} health check failed at http://localhost:${port}/healthz"
         return 1
+    local body
+    local http_status
+
+    if ! response=$(curl -sS -w "%{http_code}" "http://localhost:${port}/healthz"); then
+        echo_log "❌ ${service} health check request failed at http://localhost:${port}/healthz"
+        return 1
     fi
 
-    if echo "$response" | jq -e \
-        --arg service "$service" \
-        --arg phase "$CODEX_PHASE" \
-        --argjson port "$port" \
-        '.status == "ok" and .service == $service and .phase == $phase and .port == $port' >/dev/null; then
-        echo_log "✅ ${service} health check passed on port ${port}: $response"
+    http_status="${response: -3}"
+    body="${response::-3}"
+
+    if [ "$http_status" != "200" ]; then
+        echo_log "❌ ${service} health check returned HTTP ${http_status} at http://localhost:${port}/healthz: ${body}"
+        return 1
+    fi
+
+    if [[ "$body" == *'"status":"ok"'* && "$body" == *"\"service\":\"${service}\""* && "$body" == *"\"phase\":\"${CODEX_PHASE}\""* && "$body" == *"\"port\":${port}"* ]]; then
+        echo_log "✅ ${service} health check passed on port ${port}: ${body}"
     else
-        echo_log "❌ ${service} health response shape mismatch on port ${port}: $response"
+        echo_log "❌ ${service} health response shape mismatch on port ${port}: ${body}"
         return 1
     fi
 }
