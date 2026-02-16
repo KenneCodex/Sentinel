@@ -1,34 +1,51 @@
 # Sentinel
 
-This repository currently centers on automation/docs artifacts for the Sentinel ecosystem.
+SentinelAi - Advanced AI automation and monitoring platform
 
-## Local parity baseline
+## Features
 
-To keep parity with the broader multi-service effort, local environments should use these environment variables (in `.env` or exported shell env). See `.env.example` for a template:
+- 🤖 AI-driven task prioritization
+- 🚀 Multi-host deployment automation
+- 🔍 Comprehensive shell script debugging and validation
+- 📊 Automated audit logging and compliance tracking
+- ✅ CLI validation and environment checking
+- 📝 Standardized pull request workflows
 
-- `CODEXJR_PORT=5051`
-- `SENTINEL_PORT=5052`
-- `ARCHIVIST_PORT=5053`
-- `SHRINE_PORT=5054`
-- `CODEX_PHASE="Phase XX"`
+## Quick Start
 
-All services are expected to expose `GET /healthz` and return:
-
-```json
-{"status":"ok","service":"<ServiceName>","phase":"<Phase>","port":<PortNumber>}
-```
-
-## Script behavior
-
-`sentinel_client_update.sh` now:
-
-1. Loads `.env` values when present.
-2. Logs local parity phase/ports.
-3. Performs safer install checks when auto-installing `git`/`python3.10`.
-4. Runs a localhost `/healthz` check on each of the four configured service ports (5051-5054) and validates response shape.
-
-## Quick check
+### Running Automated Validations
 
 ```bash
-bash -n sentinel_client_update.sh
+# Validate your CLI environment
+./cli-validation.sh
+
+# Prioritize a task
+./ai-task-prioritization.sh TASK-001 "Task description" 9 10 3 1 9
+
+# Validate deployment prerequisites
+./multi-host-deployment.sh validate
 ```
+
+## Documentation
+
+- [**Automation Features**](AUTOMATION.md) - Comprehensive guide to all automation capabilities
+- [**Copilot Recommendations**](COPILOT_RECOMMENDATIONS.md) - AI integration strategies
+- [**Pull Request Template**](.github/PULL_REQUEST_TEMPLATE.md) - Standardized PR format
+- [**Audit Logs**](.audit-logs/README.md) - Audit logging documentation
+
+## CI/CD Workflows
+
+This project includes GitHub Actions workflows for:
+- Shell script CI/CD with debugging
+- AI-driven task prioritization
+- Multi-host deployment automation
+
+See `.github/workflows/` for workflow definitions.
+
+## Contributing
+
+Please use the pull request template when submitting changes. All automation activities are logged to `.audit-logs/` for traceability.
+
+## License
+
+See LICENSE file for details.
