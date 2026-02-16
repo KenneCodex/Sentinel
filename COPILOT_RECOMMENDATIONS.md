@@ -32,7 +32,7 @@ This document provides a comprehensive assessment of the Sentinel repository's c
 **Security Findings:**
 - 🔴 **CRITICAL**: Hardcoded GitHub API token in `sentinel_client_update.sh` (line 100)
   ```bash
-  GITHUB_API_TOKEN="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"
+  GITHUB_API_TOKEN="ghp_***"
   ```
   **Impact**: Exposed credentials represent immediate security vulnerability
 
