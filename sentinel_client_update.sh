@@ -163,7 +163,11 @@ health_check() {
         return 1
     fi
 
-    if [[ "$response" == *'"status":"ok"'* && "$response" == *"\"service\":\"${service}\""* && "$response" == *"\"phase\":\"${CODEX_PHASE}\""* && "$response" == *"\"port\":${port}"* ]]; then
+    if echo "$response" | jq -e \
+        --arg service "$service" \
+        --arg phase "$CODEX_PHASE" \
+        --argjson port "$port" \
+        '.status == "ok" and .service == $service and .phase == $phase and .port == $port' >/dev/null; then
         echo_log "✅ ${service} health check passed on port ${port}: $response"
     else
         echo_log "❌ ${service} health response shape mismatch on port ${port}: $response"
