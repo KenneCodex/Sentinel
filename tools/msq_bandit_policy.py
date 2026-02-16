@@ -91,9 +91,32 @@ def load_or_init_player_state(path: Path, player_id: str) -> PlayerPolicyState:
     if not obj:
         return init_player(player_id)
 
-    arms = [ArmState(**a) for a in obj["arms"]]
-    return PlayerPolicyState(player_id=obj["player_id"], runs_seen=obj["runs_seen"], arms=arms)
+    # Validate loaded structure and ensure it belongs to the requested player.
+    if not isinstance(obj, dict):
+        return init_player(player_id)
 
+    loaded_player_id = obj.get("player_id")
+    runs_seen = obj.get("runs_seen")
+    arms_raw = obj.get("arms")
 
+    # If the persisted player_id doesn't match, or types are wrong, start fresh.
+    if not isinstance(loaded_player_id, str) or loaded_player_id != player_id:
+        return init_player(player_id)
+    if not isinstance(runs_seen, int):
+        return init_player(player_id)
+    if not isinstance(arms_raw, list):
+        return init_player(player_id)
+
+    arms: List[ArmState] = []
+    for a in arms_raw:
+        if not isinstance(a, dict):
+            return init_player(player_id)
+        try:
+            arms.append(ArmState(**a))
+        except (TypeError, KeyError):
+            return init_player(player_id)
+
+    # Use the function argument player_id, which we've validated against disk.
+    return PlayerPolicyState(player_id=player_id, runs_seen=runs_seen, arms=arms)
 def save_player_state(path: Path, state: PlayerPolicyState) -> None:
     _save_json(path, asdict(state))
