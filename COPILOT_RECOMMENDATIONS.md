@@ -132,6 +132,10 @@ Min Drift Score: 0.027
          - id: check-yaml
          - id: end-of-file-fixer
          - id: trailing-whitespace
+   
+     - repo: https://github.com/Yelp/detect-secrets
+       rev: v1.5.0
+       hooks:
          - id: detect-secrets
    
      - repo: https://github.com/shellcheck-py/shellcheck-py
