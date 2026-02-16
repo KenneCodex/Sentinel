@@ -80,10 +80,10 @@ def update_arm(state: PlayerPolicyState, arm_id: str, success: bool) -> None:
 
 
 def arm_delta(arm_id: str) -> Dict[str, Any]:
-    for a in DEFAULT_ARMS:
-        if a["arm_id"] == arm_id:
-            return a["delta"]
-    raise ValueError(f"Unknown arm_id: {arm_id}")
+    arm = DEFAULT_ARMS_MAP.get(arm_id)
+    if arm is None:
+        raise ValueError(f"Unknown arm_id: {arm_id}")
+    return arm["delta"]
 
 
 def load_or_init_player_state(path: Path, player_id: str) -> PlayerPolicyState:
