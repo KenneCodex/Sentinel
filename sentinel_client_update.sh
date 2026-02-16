@@ -164,16 +164,26 @@ health_check() {
     if ! response=$(curl -fsS "http://localhost:${port}/healthz"); then
         echo_log "❌ ${service} health check failed at http://localhost:${port}/healthz"
         return 1
+    local body
+    local http_status
+
+    if ! response=$(curl -sS -w "%{http_code}" "http://localhost:${port}/healthz"); then
+        echo_log "❌ ${service} health check request failed at http://localhost:${port}/healthz"
+        return 1
     fi
 
-    if echo "$response" | jq -e \
-        --arg service "$service" \
-        --arg phase "$CODEX_PHASE" \
-        --argjson port "$port" \
-        '.status == "ok" and .service == $service and .phase == $phase and .port == $port' >/dev/null; then
-        echo_log "✅ ${service} health check passed on port ${port}: $response"
+    http_status="${response: -3}"
+    body="${response::-3}"
+
+    if [ "$http_status" != "200" ]; then
+        echo_log "❌ ${service} health check returned HTTP ${http_status} at http://localhost:${port}/healthz: ${body}"
+        return 1
+    fi
+
+    if [[ "$body" == *'"status":"ok"'* && "$body" == *"\"service\":\"${service}\""* && "$body" == *"\"phase\":\"${CODEX_PHASE}\""* && "$body" == *"\"port\":${port}"* ]]; then
+        echo_log "✅ ${service} health check passed on port ${port}: ${body}"
     else
-        echo_log "❌ ${service} health response shape mismatch on port ${port}: $response"
+        echo_log "❌ ${service} health response shape mismatch on port ${port}: ${body}"
         return 1
     fi
 }
