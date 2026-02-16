@@ -158,7 +158,7 @@ def generate_random_triplets(alphabet: List[str], n: int, rng: random.Random) ->
     out: List[str] = []
     for _ in range(n):
         a, b, c = rng.sample(alphabet, 3)
-        tokens = sorted([normalize_text(a), normalize_text(b), normalize_text(c)])
+        tokens = sorted([a, b, c])
         out.append("-".join(tokens))
     return out
 
