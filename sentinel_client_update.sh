@@ -45,7 +45,7 @@ CODEXJR_PORT="${CODEXJR_PORT:-5051}"
 SENTINEL_PORT="${SENTINEL_PORT:-5052}"
 ARCHIVIST_PORT="${ARCHIVIST_PORT:-5053}"
 SHRINE_PORT="${SHRINE_PORT:-5054}"
-CODEX_PHASE="${CODEX_PHASE:-Phase Unknown}"
+CODEX_PHASE="${CODEX_PHASE:-Phase 19}"
 
 # Define Sentinel Node directory
 SENTINEL_DIR="$HOME/sentinel_client"
@@ -181,6 +181,8 @@ health_check() {
     local service="$1"
     local port="$2"
     local response
+    local body
+    local http_status
 
     # NOTE: Health checks are intentionally strict: use -fsS so HTTP/connection errors
     # fail the script under `set -e`. Other curl calls in this script use -s because
@@ -190,13 +192,7 @@ health_check() {
         return 1
     fi
 
-    if ! response=$(curl -fsS --connect-timeout 5 --max-time 10 "http://localhost:${port}/healthz"); then
-        echo_log "❌ ${service} health check failed at http://localhost:${port}/healthz"
-        return 1
-    local body
-    local http_status
-
-    if ! response=$(curl -sS -w "%{http_code}" "http://localhost:${port}/healthz"); then
+    if ! response=$(curl -sS --connect-timeout 5 --max-time 10 -w "%{http_code}" "http://localhost:${port}/healthz"); then
         echo_log "❌ ${service} health check request failed at http://localhost:${port}/healthz"
         return 1
     fi
