@@ -192,7 +192,7 @@ health_check() {
         return 1
     fi
 
-    if ! response=$(curl -sS -w "%{http_code}" "http://localhost:${port}/healthz"); then
+    if ! response=$(curl -sS --connect-timeout 5 --max-time 10 -w "%{http_code}" "http://localhost:${port}/healthz"); then
         echo_log "❌ ${service} health check request failed at http://localhost:${port}/healthz"
         return 1
     fi
