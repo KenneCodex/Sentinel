@@ -9,6 +9,7 @@ sealed audit exports or intentionally numbered artifacts.
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 from typing import Iterable
 
@@ -25,22 +26,30 @@ DEFAULT_EXCLUDES = {
 }
 
 
-def is_excluded(path: Path, root: Path, excludes: set[str]) -> bool:
-    try:
-        relative = path.relative_to(root)
-    except ValueError:
-        return True
-    return any(part in excludes for part in relative.parts)
+def iter_documents(
+    root: Path,
+    extensions: set[str],
+    excludes: set[str],
+    output_root: Path | None = None,
+) -> Iterable[Path]:
+    """Yield matching documents while pruning excluded directories during traversal."""
+    resolved_output = output_root.resolve() if output_root else None
 
+    for dirpath, dirnames, filenames in os.walk(root):
+        current_dir = Path(dirpath)
+        dirnames[:] = sorted(
+            dirname
+            for dirname in dirnames
+            if dirname not in excludes
+            and (resolved_output is None or (current_dir / dirname).resolve() != resolved_output)
+        )
 
-def iter_documents(root: Path, extensions: set[str], excludes: set[str]) -> Iterable[Path]:
-    for path in sorted(root.rglob("*")):
-        if not path.is_file():
-            continue
-        if is_excluded(path, root, excludes):
-            continue
-        if path.suffix.lower() in extensions:
-            yield path
+        for filename in sorted(filenames):
+            if filename in excludes:
+                continue
+            path = current_dir / filename
+            if path.suffix.lower() in extensions:
+                yield path
 
 
 def already_numbered(lines: list[str]) -> bool:
@@ -103,7 +112,7 @@ def main() -> int:
 
     changed = []
     skipped = []
-    for path in iter_documents(root, extensions, excludes):
+    for path in iter_documents(root, extensions, excludes, None if args.in_place else output_root):
         if args.in_place:
             did_change = number_in_place(path, args.width, args.force)
             (changed if did_change else skipped).append(path)
