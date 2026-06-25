@@ -60,10 +60,11 @@ def already_numbered(lines: list[str]) -> bool:
 
 
 def numbered_text(text: str, width: int) -> str:
+    newline = "\r\n" if "\r\n" in text else "\n"
     lines = text.splitlines()
     numbered = [f"L{idx:0{width}d} | {line}" for idx, line in enumerate(lines, start=1)]
-    suffix = "\n" if text.endswith("\n") else ""
-    return "\n".join(numbered) + suffix
+    suffix = newline if text.endswith(newline) else ("\n" if text.endswith("\n") else "")
+    return newline.join(numbered) + suffix
 
 
 def write_numbered_copy(path: Path, root: Path, output_root: Path, width: int, force: bool) -> Path | None:
