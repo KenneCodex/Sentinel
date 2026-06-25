@@ -56,7 +56,13 @@ def already_numbered(lines: list[str]) -> bool:
     sample = [line for line in lines[:10] if line.strip()]
     if not sample:
         return False
-    return all(line.startswith("L") and " | " in line[:12] for line in sample[:3])
+    for line in sample[:3]:
+        if not line.startswith("L"):
+            return False
+        parts = line.split(" | ", 1)
+        if len(parts) < 2 or not parts[0][1:].isdigit():
+            return False
+    return True
 
 
 def numbered_text(text: str, width: int) -> str:
