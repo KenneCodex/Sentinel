@@ -10,6 +10,7 @@ SentinelAi - Advanced AI automation and monitoring platform
 - 📊 Automated audit logging and compliance tracking
 - ✅ CLI validation and environment checking
 - 📝 Standardized pull request workflows
+- 🔔 Scheduled routine source checks and notification receipts
 
 ## Quick Start
 
@@ -29,9 +30,14 @@ SentinelAi - Advanced AI automation and monitoring platform
 ./multi-host-deployment.sh validate
 ```
 
+### Running Scheduled Routine Checks
+
+Dispatch the **Sentinel Scheduled Routines** workflow from GitHub Actions and select `all`, `system-health`, `issue-triage`, or `bughunt`. Every run writes a job-summary receipt. Configure the optional `SENTINEL_NOTIFICATION_WEBHOOK` Actions secret for Slack-compatible delivery.
+
 ## Documentation
 
 - [**Automation Features**](AUTOMATION.md) - Comprehensive guide to all automation capabilities
+- [**Automation Routines**](docs/automation-routines.md) - Canonical source, health-state, and notification contract
 - [**Copilot Recommendations**](COPILOT_RECOMMENDATIONS.md) - AI integration strategies
 - [**Pull Request Template**](.github/PULL_REQUEST_TEMPLATE.md) - Standardized PR format
 - [**Audit Logs**](.audit-logs/README.md) - Audit logging documentation
@@ -43,6 +49,7 @@ This project includes GitHub Actions workflows for:
 - Shell script CI/CD with debugging
 - AI-driven task prioritization
 - Multi-host deployment automation
+- Scheduled source preflight, issue triage, system health, bughunt validation, and notification receipts
 
 See `.github/workflows/` for workflow definitions.
 
