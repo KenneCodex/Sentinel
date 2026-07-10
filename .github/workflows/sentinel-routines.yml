@@ -1,6 +1,13 @@
 name: Sentinel Scheduled Routines
 
 on:
+  pull_request:
+    paths:
+      - '.github/workflows/sentinel-routines.yml'
+      - 'docs/automation-routines.md'
+      - 'README.md'
+      - '**.sh'
+      - '**.py'
   workflow_dispatch:
     inputs:
       routine:
@@ -80,7 +87,7 @@ jobs:
   system_health:
     name: System health check
     needs: preflight
-    if: ${{ always() && (github.event_name == 'schedule' || inputs.routine == 'all' || inputs.routine == 'system-health') }}
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.routine == 'all' || inputs.routine == 'system-health') }}
     runs-on: ubuntu-latest
     steps:
       - name: Evaluate source health
@@ -115,7 +122,7 @@ jobs:
   issue_triage:
     name: Daily issue triage
     needs: preflight
-    if: ${{ always() && (github.event_name == 'schedule' || inputs.routine == 'all' || inputs.routine == 'issue-triage') }}
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.routine == 'all' || inputs.routine == 'issue-triage') }}
     runs-on: ubuntu-latest
     steps:
       - name: Classify open issues
@@ -178,7 +185,7 @@ jobs:
   bughunt:
     name: Bug finder validation sweep
     needs: preflight
-    if: ${{ always() && (github.event_name == 'schedule' || inputs.routine == 'all' || inputs.routine == 'bughunt') }}
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || inputs.routine == 'all' || inputs.routine == 'bughunt') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
