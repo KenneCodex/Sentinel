@@ -80,7 +80,7 @@ jobs:
   system_health:
     name: System health check
     needs: preflight
-    if: ${{ always() && (env.ROUTINE_SELECTION == 'all' || env.ROUTINE_SELECTION == 'system-health') }}
+    if: ${{ always() && (github.event_name == 'schedule' || inputs.routine == 'all' || inputs.routine == 'system-health') }}
     runs-on: ubuntu-latest
     steps:
       - name: Evaluate source health
@@ -115,7 +115,7 @@ jobs:
   issue_triage:
     name: Daily issue triage
     needs: preflight
-    if: ${{ always() && (env.ROUTINE_SELECTION == 'all' || env.ROUTINE_SELECTION == 'issue-triage') }}
+    if: ${{ always() && (github.event_name == 'schedule' || inputs.routine == 'all' || inputs.routine == 'issue-triage') }}
     runs-on: ubuntu-latest
     steps:
       - name: Classify open issues
@@ -178,7 +178,7 @@ jobs:
   bughunt:
     name: Bug finder validation sweep
     needs: preflight
-    if: ${{ always() && (env.ROUTINE_SELECTION == 'all' || env.ROUTINE_SELECTION == 'bughunt') }}
+    if: ${{ always() && (github.event_name == 'schedule' || inputs.routine == 'all' || inputs.routine == 'bughunt') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
