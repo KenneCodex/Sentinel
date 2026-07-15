@@ -1,0 +1,43 @@
+{
+  "graph_id": "GRAPH-MSQ-0001",
+  "version": "1.0.0",
+  "created_at": "2026-07-15T00:00:00Z",
+  "cost_unit": "SE",
+  "nodes": [
+    {
+      "node_id": 1,
+      "name": "Foundation",
+      "cost": 0,
+      "requires": [],
+      "effect": "root_node_unlocked_by_default"
+    },
+    {
+      "node_id": 2,
+      "name": "Spark Yield I",
+      "cost": 100,
+      "requires": [1],
+      "effect": "base_SE +0.5"
+    },
+    {
+      "node_id": 3,
+      "name": "Proximity Tuning",
+      "cost": 250,
+      "requires": [2],
+      "effect": "prox_scale +2"
+    },
+    {
+      "node_id": 4,
+      "name": "Combo Extender",
+      "cost": 500,
+      "requires": [3],
+      "effect": "combo_multiplier.window_sec +4"
+    },
+    {
+      "node_id": 5,
+      "name": "Lock Discount",
+      "cost": 1000,
+      "requires": [3],
+      "effect": "lock_cost -5"
+    }
+  ]
+}
