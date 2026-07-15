@@ -14,16 +14,17 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["node_id", "name", "cost", "requires"],
+        "required": ["node_id", "name", "cost", "requires", "effect"],
         "properties": {
           "node_id": { "type": "integer", "minimum": 1 },
-          "name": { "type": "string" },
+          "name": { "type": "string", "minLength": 1 },
           "cost": { "type": "integer", "minimum": 0 },
           "requires": {
             "type": "array",
+            "uniqueItems": true,
             "items": { "type": "integer", "minimum": 1 }
           },
-          "effect": { "type": "string" }
+          "effect": { "type": "string", "minLength": 1 }
         },
         "additionalProperties": false
       }
