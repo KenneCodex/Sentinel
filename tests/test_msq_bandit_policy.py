@@ -18,3 +18,6 @@ def test_choose_and_update_arm_roundtrip():
     arm = choose_arm(state, seed=1)
     update_arm(state, arm, success=True)
     assert state.runs_seen == 1
+    updated_arm = next(a for a in state.arms if a.arm_id == arm)
+    assert updated_arm.alpha == 2.0
+    assert updated_arm.beta == 1.0

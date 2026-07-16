@@ -5,7 +5,7 @@ def test_new_event_has_required_fields():
     event = new_event(
         player_id="player-1",
         session_id="session-1",
-        event_type="test_event",
+        event_type="session_start",
         ruleset_id="ruleset-1",
         state_id="state-1",
         bin_384=0,
