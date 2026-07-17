@@ -247,15 +247,17 @@ validate_git_configuration() {
             log_success "Inside a Git repository"
             
             # Get git info
-            local branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-            local commit=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-            
+            local branch commit
+            branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+            commit=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
             log_message "  └─ Branch: $branch"
             log_message "  └─ Commit: $commit"
-            
+
             # Check git config
-            local user_name=$(git config user.name 2>/dev/null || echo "")
-            local user_email=$(git config user.email 2>/dev/null || echo "")
+            local user_name user_email
+            user_name=$(git config user.name 2>/dev/null || echo "")
+            user_email=$(git config user.email 2>/dev/null || echo "")
             
             if [[ -n "$user_name" ]]; then
                 log_success "Git user.name is configured: $user_name"
@@ -280,13 +282,14 @@ validate_git_configuration() {
 validate_shell_scripts_syntax() {
     log_message "=== Validating Shell Scripts Syntax ==="
     
-    local scripts=$(find . -name "*.sh" -type f 2>/dev/null)
-    
-    if [[ -z "$scripts" ]]; then
+    local found_scripts
+    found_scripts=$(find . -name "*.sh" -type f 2>/dev/null)
+
+    if [[ -z "$found_scripts" ]]; then
         log_warning "No shell scripts found"
         return
     fi
-    
+
     # Only validate syntax if bash is available (which it should be)
     while IFS= read -r script; do
         if bash -n "$script" 2>/dev/null; then
@@ -294,7 +297,7 @@ validate_shell_scripts_syntax() {
         else
             log_error "Syntax error in: $script"
         fi
-    done <<< "$scripts"
+    done <<< "$found_scripts"
     
     echo ""
 }

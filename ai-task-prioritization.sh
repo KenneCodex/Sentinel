@@ -36,10 +36,12 @@ calculate_priority_score() {
     local risk=$5
     
     # Normalize effort (lower effort = higher score)
-    local normalized_effort=$(echo "scale=2; (10 - $effort) / 10" | bc)
-    
+    local normalized_effort
+    normalized_effort=$(echo "scale=2; (10 - $effort) / 10" | bc)
+
     # Calculate weighted score
-    local score=$(echo "scale=2; \
+    local score
+    score=$(echo "scale=2; \
         ($urgency / 10) * $WEIGHT_URGENCY + \
         ($impact / 10) * $WEIGHT_IMPACT + \
         $normalized_effort * $WEIGHT_EFFORT + \
@@ -77,8 +79,9 @@ prioritize_task() {
     log_message "Analyzing task: $task_name (ID: $task_id)"
     
     # Calculate priority score
-    local score=$(calculate_priority_score "$urgency" "$impact" "$effort" "$dependencies" "$risk")
-    local priority_level=$(get_priority_level "$score")
+    local score priority_level
+    score=$(calculate_priority_score "$urgency" "$impact" "$effort" "$dependencies" "$risk")
+    priority_level=$(get_priority_level "$score")
     
     # Create audit log entry
     cat >> "$AUDIT_LOG_FILE" << EOF
@@ -133,7 +136,8 @@ analyze_tasks_from_json() {
     
     # Parse JSON and prioritize each task
     # Example JSON structure: {"tasks": [{"id": "TASK-1", "name": "...", ...}]}
-    local tasks_count=$(jq '.tasks | length' "$json_file")
+    local tasks_count
+    tasks_count=$(jq '.tasks | length' "$json_file")
     log_message "Found $tasks_count tasks to prioritize"
     
     echo "]" >> "$AUDIT_LOG_FILE"
