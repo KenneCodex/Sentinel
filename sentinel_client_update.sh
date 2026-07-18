@@ -142,33 +142,50 @@ else
 fi
 
 # 🛠 Step 7: Fetch Sentinel AI EEG Data & Synchronize
+# NOTE: These curl calls are best-effort/diagnostic (see Step 11 comment below);
+# a failure here must not abort the rest of the update under `set -e`.
 SENTINEL_API_URL="http://localhost:8000"
 echo_log "📡 Fetching Sentinel EEG Synchronization Data..."
-EEG_DATA=$(curl -s "$SENTINEL_API_URL/eeg_synchronization")
+if ! EEG_DATA=$(curl -s "$SENTINEL_API_URL/eeg_synchronization"); then
+    echo_log "⚠️ Failed to fetch Sentinel EEG synchronization data from $SENTINEL_API_URL; continuing."
+    EEG_DATA=""
+fi
 echo_log "🧠 Retrieved EEG Data: $EEG_DATA"
 
 # 🛠 Step 8: Request MyGPT EEG Research
 MYGPT_API_URL="https://mygpt-research-assistant.com/api"
 TASK="Analyze EEG synchronization in AI-human interaction using Sentinel AI data"
-RESEARCH_RESPONSE=$(curl -s -X POST "$MYGPT_API_URL/chat" -H "Content-Type: application/json" -d "{\"input\": \"$TASK\"}")
+if ! RESEARCH_RESPONSE=$(curl -s -X POST "$MYGPT_API_URL/chat" -H "Content-Type: application/json" -d "{\"input\": \"$TASK\"}"); then
+    echo_log "⚠️ Failed to reach MyGPT research API at $MYGPT_API_URL; continuing."
+    RESEARCH_RESPONSE=""
+fi
 echo_log "🔬 MyGPT EEG Research Response: $RESEARCH_RESPONSE"
 
 # 🛠 Step 9: Send Research Findings to Sentinel AI
 echo_log "📡 Sending research findings to Sentinel AI..."
-SEND_RESPONSE=$(curl -s -X POST "$SENTINEL_API_URL/update" -H "Content-Type: application/json" -d "{\"research_update\": $RESEARCH_RESPONSE}")
+if ! SEND_RESPONSE=$(curl -s -X POST "$SENTINEL_API_URL/update" -H "Content-Type: application/json" -d "{\"research_update\": $RESEARCH_RESPONSE}"); then
+    echo_log "⚠️ Failed to send research findings to Sentinel AI at $SENTINEL_API_URL; continuing."
+    SEND_RESPONSE=""
+fi
 echo_log "✅ Sentinel AI Update Response: $SEND_RESPONSE"
 
 # 🛠 Step 10: Authenticate GitHub API & Fetch Repo Info
 GITHUB_API_URL="https://api.github.com/repos/KenneCodex/Sentinel"
 if [ -n "${GITHUB_API_TOKEN:-}" ]; then
     echo_log "📡 Fetching repository information from GitHub with token auth..."
-    GITHUB_RESPONSE=$(curl -s \
+    if ! GITHUB_RESPONSE=$(curl -s \
       --header "Authorization: token $GITHUB_API_TOKEN" \
       --header "X-GitHub-Api-Version: 2022-11-28" \
-      "$GITHUB_API_URL")
+      "$GITHUB_API_URL"); then
+        echo_log "⚠️ Failed to fetch GitHub repository info; continuing."
+        GITHUB_RESPONSE=""
+    fi
 else
     echo_log "⚠️ GITHUB_API_TOKEN not set; using unauthenticated GitHub API request."
-    GITHUB_RESPONSE=$(curl -s --header "X-GitHub-Api-Version: 2022-11-28" "$GITHUB_API_URL")
+    if ! GITHUB_RESPONSE=$(curl -s --header "X-GitHub-Api-Version: 2022-11-28" "$GITHUB_API_URL"); then
+        echo_log "⚠️ Failed to fetch GitHub repository info; continuing."
+        GITHUB_RESPONSE=""
+    fi
 fi
 
 echo_log "🔍 GitHub API Response: $GITHUB_RESPONSE"

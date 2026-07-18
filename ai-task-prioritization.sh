@@ -45,7 +45,15 @@ calculate_priority_score() {
         $normalized_effort * $WEIGHT_EFFORT + \
         (1 - $dependencies / 5) * $WEIGHT_DEPENDENCIES + \
         ($risk / 10) * $WEIGHT_RISK" | bc)
-    
+
+    # bc omits the leading zero on fractional values (e.g. ".87"), which is
+    # not valid JSON and breaks strict JSON parsers reading the audit log.
+    if [[ "$score" == .* ]]; then
+        score="0$score"
+    elif [[ "$score" == -.* ]]; then
+        score="-0${score#-}"
+    fi
+
     echo "$score"
 }
 
