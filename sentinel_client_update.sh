@@ -163,8 +163,13 @@ echo_log "🔬 MyGPT EEG Research Response: $RESEARCH_RESPONSE"
 
 # 🛠 Step 9: Send Research Findings to Sentinel AI
 echo_log "📡 Sending research findings to Sentinel AI..."
-if ! SEND_RESPONSE=$(curl -s -X POST "$SENTINEL_API_URL/update" -H "Content-Type: application/json" -d "{\"research_update\": $RESEARCH_RESPONSE}"); then
-    echo_log "⚠️ Failed to send research findings to Sentinel AI at $SENTINEL_API_URL; continuing."
+if [ -n "$RESEARCH_RESPONSE" ]; then
+    if ! SEND_RESPONSE=$(curl -s -X POST "$SENTINEL_API_URL/update" -H "Content-Type: application/json" -d "{\"research_update\": $RESEARCH_RESPONSE}"); then
+        echo_log "⚠️ Failed to send research findings to Sentinel AI at $SENTINEL_API_URL; continuing."
+        SEND_RESPONSE=""
+    fi
+else
+    echo_log "⚠️ Skipping sending research findings because MyGPT response is empty."
     SEND_RESPONSE=""
 fi
 echo_log "✅ Sentinel AI Update Response: $SEND_RESPONSE"
