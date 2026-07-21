@@ -247,7 +247,8 @@ deploy_environment() {
     log_message "Environment: $environment"
     log_message "Deployment ID: $DEPLOYMENT_ID"
     
-    local start_time=$(date +%s)
+    local start_time
+    start_time=$(date +%s)
     
     # Validate prerequisites
     validate_prerequisites || {
@@ -272,7 +273,8 @@ deploy_environment() {
     log_message "  - Configure SSH keys for passwordless deployment"
     log_message "  - Customize deployment-config.json for your hosts"
     
-    local end_time=$(date +%s)
+    local end_time
+    end_time=$(date +%s)
     local duration=$((end_time - start_time))
     
     create_audit_log "$environment" "completed" 1 "$duration"
