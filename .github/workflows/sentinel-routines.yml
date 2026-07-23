@@ -1,0 +1,272 @@
+name: Sentinel Scheduled Routines
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/sentinel-routines.yml'
+      - 'docs/automation-routines.md'
+      - 'README.md'
+      - '**.sh'
+      - '**.py'
+  workflow_dispatch:
+    inputs:
+      routine:
+        description: Routine to run
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - system-health
+          - issue-triage
+          - bughunt
+  schedule:
+    # Canonical UTC fallback. External routine schedulers may keep their
+    # local-time cadence and invoke this workflow with workflow_dispatch.
+    - cron: '0 13 * * *'
+
+permissions:
+  contents: read
+  issues: read
+  actions: read
+
+concurrency:
+  group: sentinel-routines-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ROUTINE_SELECTION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.routine || 'all' }}
+
+jobs:
+  preflight:
+    name: Resolve automation source
+    runs-on: ubuntu-latest
+    outputs:
+      source_state: ${{ steps.source.outputs.source_state }}
+      issue_count: ${{ steps.source.outputs.issue_count }}
+    steps:
+      - name: Verify repository and issue source
+        id: source
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            let sourceState = 'unavailable';
+            let issueCount = 0;
+
+            try {
+              await github.rest.repos.get({ owner, repo });
+              const records = await github.paginate(
+                github.rest.issues.listForRepo,
+                { owner, repo, state: 'open', per_page: 100 }
+              );
+              const issues = records.filter(record => !record.pull_request);
+              issueCount = issues.length;
+              sourceState = issueCount === 0 ? 'reachable-empty' : 'reachable-items';
+            } catch (error) {
+              sourceState = error.status === 401 || error.status === 403
+                ? 'unauthorized'
+                : 'unavailable';
+              core.warning(`GitHub source check failed: ${error.message}`);
+            }
+
+            core.setOutput('source_state', sourceState);
+            core.setOutput('issue_count', String(issueCount));
+            await core.summary
+              .addHeading('Automation source preflight')
+              .addTable([
+                [{data: 'Field', header: true}, {data: 'Value', header: true}],
+                ['Repository', `${owner}/${repo}`],
+                ['Source state', sourceState],
+                ['Open issue count', String(issueCount)],
+                ['Routine selection', process.env.ROUTINE_SELECTION]
+              ])
+              .write();
+
+  system_health:
+    name: System health check
+    needs: preflight
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || github.event.inputs.routine == 'all' || github.event.inputs.routine == 'system-health') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate source health
+        env:
+          SOURCE_STATE: ${{ needs.preflight.outputs.source_state }}
+          ISSUE_COUNT: ${{ needs.preflight.outputs.issue_count }}
+        run: |
+          set -euo pipefail
+          {
+            echo '## System health check'
+            echo
+            echo "- Repository: \`${GITHUB_REPOSITORY}\`"
+            echo "- GitHub source: \`${SOURCE_STATE}\`"
+            echo "- Open issues observed: \`${ISSUE_COUNT}\`"
+            echo "- Connector context: GitHub Actions repository token"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          case "$SOURCE_STATE" in
+            reachable-empty|reachable-items)
+              echo 'Repository and issue source are reachable.'
+              ;;
+            unauthorized)
+              echo 'Issue source is configured but unauthorized.' >&2
+              exit 1
+              ;;
+            *)
+              echo 'Issue source is unavailable.' >&2
+              exit 1
+              ;;
+          esac
+
+  issue_triage:
+    name: Daily issue triage
+    needs: preflight
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || github.event.inputs.routine == 'all' || github.event.inputs.routine == 'issue-triage') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Classify open issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sourceState = '${{ needs.preflight.outputs.source_state }}';
+            if (!sourceState.startsWith('reachable-')) {
+              core.setFailed(`Cannot triage issues: source state is ${sourceState}`);
+              return;
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const records = await github.paginate(
+              github.rest.issues.listForRepo,
+              { owner, repo, state: 'open', per_page: 100 }
+            );
+            const issues = records.filter(record => !record.pull_request);
+            const classes = ['Bug', 'Feature', 'Improvement', 'Question'];
+            const counts = Object.fromEntries(classes.map(name => [name, 0]));
+            let unclassified = 0;
+
+            for (const issue of issues) {
+              const labels = issue.labels
+                .map(label => typeof label === 'string' ? label : label.name)
+                .filter(Boolean)
+                .map(label => label.toLowerCase());
+              const matches = classes.filter(name => labels.includes(name.toLowerCase()));
+              if (matches.length === 0) {
+                unclassified += 1;
+              } else {
+                for (const match of matches) counts[match] += 1;
+              }
+            }
+
+            const table = [
+              [{data: 'Class', header: true}, {data: 'Count', header: true}],
+              ...classes.map(name => [name, String(counts[name])]),
+              ['Unclassified', String(unclassified)]
+            ];
+
+            await core.summary
+              .addHeading('Daily issue triage')
+              .addRaw(issues.length === 0
+                ? 'Issue source reachable; triage queue empty.\n\n'
+                : `Observed ${issues.length} open issue(s).\n\n`)
+              .addTable(table);
+
+            if (issues.length > 0) {
+              core.summary.addHeading('Open issues', 3).addList(
+                issues.slice(0, 20).map(issue =>
+                  `#${issue.number} ${issue.title.replace(/[\r\n]+/g, ' ')} — ${issue.html_url}`
+                )
+              );
+            }
+
+            await core.summary.write();
+
+  bughunt:
+    name: Bug finder validation sweep
+    needs: preflight
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || github.event.inputs.routine == 'all' || github.event.inputs.routine == 'bughunt') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run deterministic validation sweep
+        shell: bash
+        run: |
+          set -euo pipefail
+          shell_count=0
+          while IFS= read -r -d '' file; do
+            bash -n "$file"
+            shell_count=$((shell_count + 1))
+          done < <(find . -type f -name '*.sh' -not -path './.git/*' -print0)
+
+          python_count=$(find . -type f -name '*.py' -not -path './.git/*' | wc -l | tr -d ' ')
+          if [[ "$python_count" -gt 0 ]]; then
+            python3 -m compileall -q .
+          fi
+
+          git diff --check
+
+          {
+            echo '## Bug finder validation sweep'
+            echo
+            echo "- Shell scripts syntax-checked: \`${shell_count}\`"
+            echo "- Python files byte-compiled: \`${python_count}\`"
+            echo '- Whitespace errors: `none`'
+            echo '- Result: `pass`'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  notify:
+    name: Publish routine notification
+    needs:
+      - preflight
+      - system_health
+      - issue_triage
+      - bughunt
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    env:
+      WEBHOOK_URL: ${{ secrets.SENTINEL_NOTIFICATION_WEBHOOK }}
+      SOURCE_STATE: ${{ needs.preflight.outputs.source_state }}
+      ISSUE_COUNT: ${{ needs.preflight.outputs.issue_count }}
+      HEALTH_RESULT: ${{ needs.system_health.result }}
+      TRIAGE_RESULT: ${{ needs.issue_triage.result }}
+      BUGHUNT_RESULT: ${{ needs.bughunt.result }}
+    steps:
+      - name: Build and publish notification
+        shell: bash
+        run: |
+          set -euo pipefail
+          message=$(printf '%s\n%s\n%s\n%s\n%s\n%s' \
+            'Sentinel scheduled routines' \
+            "Repository: ${GITHUB_REPOSITORY}" \
+            "Source: ${SOURCE_STATE}; open issues: ${ISSUE_COUNT}" \
+            "System health: ${HEALTH_RESULT}" \
+            "Issue triage: ${TRIAGE_RESULT}" \
+            "Bughunt: ${BUGHUNT_RESULT}")
+
+          {
+            echo '## Routine notification'
+            echo
+            echo '```text'
+            printf '%s\n' "$message"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ -z "$WEBHOOK_URL" ]]; then
+            echo 'SENTINEL_NOTIFICATION_WEBHOOK is not configured; GitHub job summary is the notification receipt.'
+            exit 0
+          fi
+
+          export MESSAGE="$message"
+          payload=$(python3 - <<'PY'
+          import json
+          import os
+          print(json.dumps({'text': os.environ['MESSAGE']}))
+          PY
+          )
+          curl --fail --silent --show-error \
+            --header 'Content-Type: application/json' \
+            --data "$payload" \
+            "$WEBHOOK_URL"
