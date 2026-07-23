@@ -33,6 +33,8 @@ DEFAULT_ARMS = [
     {"arm_id": "E_IDLE_BOOST", "delta": {"base_SE_mult": 1.1, "base_CE_mult": 1.05}},
 ]
 
+DEFAULT_ARMS_MAP = {a["arm_id"]: a for a in DEFAULT_ARMS}
+
 
 def _load_json(path: Path) -> Optional[Dict[str, Any]]:
     if not path.exists():
