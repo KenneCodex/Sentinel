@@ -3,13 +3,9 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
-
-
-def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 from tools.bin_harness_384 import append_jsonl, ensure_parent_dir, utc_now_iso
 

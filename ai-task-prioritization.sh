@@ -36,16 +36,26 @@ calculate_priority_score() {
     local risk=$5
     
     # Normalize effort (lower effort = higher score)
-    local normalized_effort=$(echo "scale=2; (10 - $effort) / 10" | bc)
-    
+    local normalized_effort
+    normalized_effort=$(echo "scale=2; (10 - $effort) / 10" | bc)
+
     # Calculate weighted score
-    local score=$(echo "scale=2; \
+    local score
+    score=$(echo "scale=2; \
         ($urgency / 10) * $WEIGHT_URGENCY + \
         ($impact / 10) * $WEIGHT_IMPACT + \
         $normalized_effort * $WEIGHT_EFFORT + \
         (1 - $dependencies / 5) * $WEIGHT_DEPENDENCIES + \
         ($risk / 10) * $WEIGHT_RISK" | bc)
-    
+
+    # bc omits the leading zero on fractional values (e.g. ".87"), which is
+    # not valid JSON and breaks strict JSON parsers reading the audit log.
+    if [[ "$score" == .* ]]; then
+        score="0$score"
+    elif [[ "$score" == -.* ]]; then
+        score="-0${score#-}"
+    fi
+
     echo "$score"
 }
 
@@ -77,8 +87,9 @@ prioritize_task() {
     log_message "Analyzing task: $task_name (ID: $task_id)"
     
     # Calculate priority score
-    local score=$(calculate_priority_score "$urgency" "$impact" "$effort" "$dependencies" "$risk")
-    local priority_level=$(get_priority_level "$score")
+    local score priority_level
+    score=$(calculate_priority_score "$urgency" "$impact" "$effort" "$dependencies" "$risk")
+    priority_level=$(get_priority_level "$score")
     
     # Create audit log entry
     cat >> "$AUDIT_LOG_FILE" << EOF
@@ -133,7 +144,8 @@ analyze_tasks_from_json() {
     
     # Parse JSON and prioritize each task
     # Example JSON structure: {"tasks": [{"id": "TASK-1", "name": "...", ...}]}
-    local tasks_count=$(jq '.tasks | length' "$json_file")
+    local tasks_count
+    tasks_count=$(jq '.tasks | length' "$json_file")
     log_message "Found $tasks_count tasks to prioritize"
     
     echo "]" >> "$AUDIT_LOG_FILE"
