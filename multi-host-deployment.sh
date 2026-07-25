@@ -276,10 +276,12 @@ deploy_environment() {
     local end_time
     end_time=$(date +%s)
     local duration=$((end_time - start_time))
-    
-    create_audit_log "$environment" "completed" 1 "$duration"
-    
-    log_success "=== Multi-Host Deployment Completed ==="
+
+    # No hosts were actually contacted above (see the framework note), so the
+    # audit log must not claim a completed deployment or a deployed host count.
+    create_audit_log "$environment" "not_implemented" 0 "$duration"
+
+    log_warning "=== Multi-Host Deployment Framework Ran (no hosts were deployed) ==="
 }
 
 # Main execution
