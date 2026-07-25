@@ -102,8 +102,12 @@ chmod -R 755 "$SENTINEL_DIR"
 echo_log "✅ Permissions set for Sentinel Client."
 
 # 🛠 Step 4: Create Desktop Shortcut (Linux Only)
+# NOTE: OSTYPE=="linux-gnu"* matches headless servers/containers too, not just
+# desktops, so ~/Desktop may not exist. Create it (or skip) rather than letting
+# the redirect fail and aborting the rest of the update under `set -e`.
 if [[ "${OSTYPE:-}" == "linux-gnu"* ]]; then
-    cat > "$HOME/Desktop/SentinelClient.desktop" <<DESKTOP
+    if mkdir -p "$HOME/Desktop" 2>/dev/null; then
+        cat > "$HOME/Desktop/SentinelClient.desktop" <<DESKTOP
 [Desktop Entry]
 Version=1.0
 Type=Application
@@ -112,8 +116,11 @@ Exec="$SENTINEL_DIR/sentinel_client.py"
 Icon="$SENTINEL_DIR/icon.png"
 Terminal=false
 DESKTOP
-    chmod +x "$HOME/Desktop/SentinelClient.desktop"
-    echo_log "✅ Sentinel Client Shortcut Created on Desktop!"
+        chmod +x "$HOME/Desktop/SentinelClient.desktop"
+        echo_log "✅ Sentinel Client Shortcut Created on Desktop!"
+    else
+        echo_log "⚠️ Could not create $HOME/Desktop (headless environment?); skipping shortcut."
+    fi
 fi
 
 # 🛠 Step 5: Apply Security Configurations

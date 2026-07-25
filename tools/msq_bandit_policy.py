@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -47,7 +48,11 @@ def _load_json(path: Path) -> Optional[Dict[str, Any]]:
 
 def _save_json(path: Path, obj: Dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+    # Write to a temp file and rename into place so a concurrent reader (or a
+    # crash mid-write) never observes a truncated/corrupt JSON file.
+    tmp_path = path.with_suffix(f"{path.suffix}.tmp{os.getpid()}")
+    tmp_path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp_path, path)
 
 
 def init_player(player_id: str) -> PlayerPolicyState:
@@ -85,7 +90,8 @@ def arm_delta(arm_id: str) -> Dict[str, Any]:
     arm = DEFAULT_ARMS_MAP.get(arm_id)
     if arm is None:
         raise ValueError(f"Unknown arm_id: {arm_id}")
-    return arm["delta"]
+    # Return a copy so callers can't mutate the shared module-level default.
+    return dict(arm["delta"])
 
 
 def load_or_init_player_state(path: Path, player_id: str) -> PlayerPolicyState:
@@ -106,7 +112,7 @@ def load_or_init_player_state(path: Path, player_id: str) -> PlayerPolicyState:
         return init_player(player_id)
     if not isinstance(runs_seen, int):
         return init_player(player_id)
-    if not isinstance(arms_raw, list):
+    if not isinstance(arms_raw, list) or not arms_raw:
         return init_player(player_id)
 
     arms: List[ArmState] = []
@@ -117,6 +123,11 @@ def load_or_init_player_state(path: Path, player_id: str) -> PlayerPolicyState:
             arms.append(ArmState(**a))
         except (TypeError, KeyError):
             return init_player(player_id)
+
+    # Loaded arms must cover exactly the known arm set, or choose_arm() has
+    # nothing (or unknown arms) to sample from.
+    if {arm.arm_id for arm in arms} != set(DEFAULT_ARMS_MAP):
+        return init_player(player_id)
 
     # Use the function argument player_id, which we've validated against disk.
     return PlayerPolicyState(player_id=player_id, runs_seen=runs_seen, arms=arms)
