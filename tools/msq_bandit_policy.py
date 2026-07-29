@@ -118,6 +118,11 @@ def load_or_init_player_state(path: Path, player_id: str) -> PlayerPolicyState:
         except (TypeError, KeyError):
             return init_player(player_id)
 
+    # Reject stale/incomplete arm sets (e.g. a retired arm_id, or an empty
+    # list) so callers never crash later in choose_arm/arm_delta.
+    if not arms or {arm.arm_id for arm in arms} != set(DEFAULT_ARMS_MAP):
+        return init_player(player_id)
+
     # Use the function argument player_id, which we've validated against disk.
     return PlayerPolicyState(player_id=player_id, runs_seen=runs_seen, arms=arms)
 def save_player_state(path: Path, state: PlayerPolicyState) -> None:

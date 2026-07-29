@@ -26,6 +26,14 @@ log_message() {
     echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $1"
 }
 
+# Function to escape a string for safe embedding in a JSON string literal
+json_escape() {
+    local s=$1
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    printf '%s' "$s"
+}
+
 # Function to calculate priority score
 # Parameters: urgency(1-10), impact(1-10), effort(1-10), dependencies(0-5), risk(1-10)
 calculate_priority_score() {
@@ -90,12 +98,15 @@ prioritize_task() {
     local score priority_level
     score=$(calculate_priority_score "$urgency" "$impact" "$effort" "$dependencies" "$risk")
     priority_level=$(get_priority_level "$score")
-    
+
     # Create audit log entry
+    local task_id_json task_name_json
+    task_id_json=$(json_escape "$task_id")
+    task_name_json=$(json_escape "$task_name")
     cat >> "$AUDIT_LOG_FILE" << EOF
 {
-    "task_id": "$task_id",
-    "task_name": "$task_name",
+    "task_id": "$task_id_json",
+    "task_name": "$task_name_json",
     "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
     "priority_score": $score,
     "priority_level": "$priority_level",
@@ -130,26 +141,27 @@ analyze_tasks_from_json() {
     fi
     
     log_message "Analyzing tasks from: $json_file"
-    
-    # Initialize audit log
-    echo "[" > "$AUDIT_LOG_FILE"
-    
+
     # Note: This requires jq for JSON parsing
     if ! command -v jq &> /dev/null; then
         log_message "WARNING: jq is not installed. JSON parsing not available."
         log_message "Please install jq for JSON batch processing."
-        echo "]" >> "$AUDIT_LOG_FILE"
         return 1
     fi
-    
+
     # Parse JSON and prioritize each task
-    # Example JSON structure: {"tasks": [{"id": "TASK-1", "name": "...", ...}]}
+    # Example JSON structure:
+    # {"tasks": [{"id": "TASK-1", "name": "...", "urgency": 9, "impact": 10,
+    #             "effort": 3, "dependencies": 1, "risk": 9}]}
     local tasks_count
     tasks_count=$(jq '.tasks | length' "$json_file")
     log_message "Found $tasks_count tasks to prioritize"
-    
-    echo "]" >> "$AUDIT_LOG_FILE"
-    
+
+    local id name urgency impact effort dependencies risk
+    while IFS=$'\t' read -r id name urgency impact effort dependencies risk; do
+        prioritize_task "$id" "$name" "$urgency" "$impact" "$effort" "$dependencies" "$risk" > /dev/null
+    done < <(jq -r '.tasks[] | [.id, .name, .urgency, .impact, .effort, .dependencies, .risk] | @tsv' "$json_file")
+
     log_message "Task prioritization completed. Audit log: $AUDIT_LOG_FILE"
 }
 
