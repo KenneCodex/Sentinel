@@ -302,6 +302,15 @@ main() {
         generate_priority_config
     fi
 
+    # Support running with no task arguments purely to ensure the priority
+    # configuration file exists (e.g. the CI "Generate priority configuration"
+    # step invokes this script with zero args). Previously this fell through
+    # to the usage branch below and exited 1, failing that CI step every run.
+    if [[ $# -eq 0 ]]; then
+        log_message "No task specified; priority configuration is ready at $PRIORITY_CONFIG_FILE"
+        return
+    fi
+
     # Example usage: prioritize a single task
     if [[ $# -eq 7 ]]; then
         prioritize_task "$@"
