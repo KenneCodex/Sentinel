@@ -21,7 +21,7 @@ from tools.msq_state import MSQState, state_id_and_bin
 from tools.msq_telemetry import append_jsonl, new_event
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
     p.add_argument("--player-id", default="P-DEMO")
     p.add_argument("--ruleset-id", default="RS-MSQ-0001")
@@ -30,7 +30,11 @@ def main() -> None:
     p.add_argument("--events", default="audit/msq/events.jsonl")
     p.add_argument("--seed", type=int, default=123)
     p.add_argument("--success", action="store_true", help="Mark session as success to update bandit")
-    args = p.parse_args()
+    return p
+
+
+def main() -> None:
+    args = build_parser().parse_args()
 
     session_id = f"S-{uuid.uuid4().hex[:12].upper()}"
 

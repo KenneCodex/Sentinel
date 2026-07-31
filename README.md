@@ -30,6 +30,15 @@ SentinelAi - Advanced AI automation and monitoring platform
 ./multi-host-deployment.sh validate
 ```
 
+### Running the Python Test Suite
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 -m pytest tests -q
+```
+
+The same suite runs in CI as part of the `bughunt` routine in the **Sentinel Scheduled Routines** workflow.
+
 ### Running Scheduled Routine Checks
 
 Dispatch the **Sentinel Scheduled Routines** workflow from GitHub Actions and select `all`, `system-health`, `issue-triage`, or `bughunt`. Every run writes a job-summary receipt. Configure the optional `SENTINEL_NOTIFICATION_WEBHOOK` Actions secret for Slack-compatible delivery.
@@ -42,6 +51,7 @@ Dispatch the **Sentinel Scheduled Routines** workflow from GitHub Actions and se
 - [**Pull Request Template**](.github/PULL_REQUEST_TEMPLATE.md) - Standardized PR format
 - [**Audit Logs**](.audit-logs/README.md) - Audit logging documentation
 - [**Game Starter Mapping**](docs/game_starter_mapping.md) - Inventory of reusable repo assets and a minimal game-project rollout plan
+- [**Dormant Components Audit**](docs/dormant-components-audit.md) - Inventory of unreached components and their disposition
 
 ## CI/CD Workflows
 
