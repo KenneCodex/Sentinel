@@ -1,6 +1,20 @@
 name: Sentinel Scheduled Routines
 
 on:
+  # Same paths on push and pull_request. Without the push trigger the validation
+  # sweep only gates pull requests, so a commit landing directly on main could
+  # change tools/ or tests/ without the suite ever running against it.
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/sentinel-routines.yml'
+      - 'docs/automation-routines.md'
+      - 'README.md'
+      - '**.sh'
+      - '**.py'
+      - 'requirements-dev.txt'
+      - 'schemas/**'
+      - 'data/**'
   pull_request:
     paths:
       - '.github/workflows/sentinel-routines.yml'

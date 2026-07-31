@@ -69,6 +69,23 @@ def test_load_guardrails_falls_back_when_pack_is_missing(tmp_path):
     assert load_guardrails(tmp_path / "absent.json") == DEFAULT_GUARDRAILS
 
 
+def test_guardrail_ranges_match_the_schema(schema):
+    """load_guardrails enforces schema ranges from a hardcoded copy; keep it honest."""
+    from tools.msq_bandit_policy import _GUARDRAIL_INT_RANGES
+
+    declared = schema["properties"]["ai_tuning"]["properties"]["guardrails"]["properties"]
+
+    for name, (low, high) in _GUARDRAIL_INT_RANGES.items():
+        assert declared[name]["type"] == "integer"
+        assert (low, high) == (declared[name]["minimum"], declared[name]["maximum"]), (
+            f"{name} range drifted from the schema"
+        )
+
+    # Every integer guardrail in the schema must be range-checked at load time.
+    schema_ints = {n for n, s in declared.items() if s.get("type") == "integer"}
+    assert schema_ints == set(_GUARDRAIL_INT_RANGES)
+
+
 def test_every_arm_knob_has_a_declared_bound():
     """bounded_changes_only is only meaningful if every shipped knob is bounded."""
     from tools.msq_bandit_policy import DEFAULT_ARMS, SCALE_KNOB_BOUNDS, STEP_KNOBS
