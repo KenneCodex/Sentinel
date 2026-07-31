@@ -65,7 +65,11 @@ def main() -> None:
     pol = load_or_init_player_state(policy_path, args.player_id)
     arm = choose_arm(pol, seed=args.seed, guardrails=guardrails)
     delta = arm_delta(arm, guardrails)
-    personalized = pol.runs_seen >= guardrails.min_runs_before_personalization
+
+    # Both captured before update_arm increments runs_seen, so the reported
+    # count is the one the personalization decision was actually made against.
+    runs_seen_at_decision = pol.runs_seen
+    personalized = runs_seen_at_decision >= guardrails.min_runs_before_personalization
 
     append_jsonl(
         events_path,
@@ -103,7 +107,7 @@ def main() -> None:
                 "chosen_arm": arm,
                 "delta": delta,
                 "personalized": personalized,
-                "runs_seen": pol.runs_seen,
+                "runs_seen_at_decision": runs_seen_at_decision,
                 "state_id": sid,
                 "bin_384": b,
             },

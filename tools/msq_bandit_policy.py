@@ -41,6 +41,27 @@ class Guardrails:
 
 DEFAULT_GUARDRAILS = Guardrails()
 
+# Accepted range for each integer guardrail, mirroring the bounds in
+# schemas/msq_content_pack_v1.schema.json. A test asserts the two stay in step.
+# Fields not listed here are booleans and are type-checked only.
+_GUARDRAIL_INT_RANGES = {
+    "max_difficulty_step_per_session": (0, 3),
+    "min_runs_before_personalization": (0, 20),
+}
+
+_GUARDRAIL_FIELDS = {f.name for f in fields(Guardrails)}
+
+
+def _is_valid_guardrail(name: str, value: Any) -> bool:
+    """Whether a declared guardrail value is well-typed and within schema range."""
+    if name in _GUARDRAIL_INT_RANGES:
+        # bool is a subclass of int; a boolean is not a valid step count.
+        if not isinstance(value, int) or isinstance(value, bool):
+            return False
+        low, high = _GUARDRAIL_INT_RANGES[name]
+        return low <= value <= high
+    return isinstance(value, bool)
+
 CONTENT_PACK_PATH = Path(__file__).resolve().parents[1] / "data" / "msq" / "content_pack_v1.json"
 
 BASELINE_ARM_ID = "A_BASELINE"
@@ -95,7 +116,15 @@ def load_guardrails(pack_path: Path = CONTENT_PACK_PATH) -> Guardrails:
 
     Falls back to :data:`DEFAULT_GUARDRAILS` when the pack is absent or does not
     declare guardrails. Unrecognised keys are ignored rather than rejected, so a
-    newer pack does not break an older client; recognised keys always bind.
+    newer pack does not break an older client.
+
+    A recognised key binds only if its value is well-typed and inside the range
+    the schema declares; otherwise that single field falls back to its default.
+    The pack is plain JSON that nothing validates at runtime, so without this an
+    out-of-range bound would simply be obeyed — a pack declaring
+    ``max_difficulty_step_per_session: 9999`` would turn the clamp into a no-op,
+    and a string where an integer belongs would fail inside ``choose_arm``.
+    Falling back to the shipped default is the fail-safe direction.
     """
     obj = _load_json(pack_path)
     if not isinstance(obj, dict):
@@ -109,8 +138,12 @@ def load_guardrails(pack_path: Path = CONTENT_PACK_PATH) -> Guardrails:
     if not isinstance(declared, dict):
         return DEFAULT_GUARDRAILS
 
-    known = {f.name for f in fields(Guardrails)}
-    return replace(DEFAULT_GUARDRAILS, **{k: v for k, v in declared.items() if k in known})
+    accepted = {
+        name: value
+        for name, value in declared.items()
+        if name in _GUARDRAIL_FIELDS and _is_valid_guardrail(name, value)
+    }
+    return replace(DEFAULT_GUARDRAILS, **accepted)
 
 
 def choose_arm(
@@ -197,6 +230,23 @@ def arm_delta(arm_id: str, guardrails: Guardrails = DEFAULT_GUARDRAILS) -> Dict[
     return bound_delta(arm["delta"], guardrails)
 
 
+def _reconcile_arms(loaded: List[ArmState]) -> List[ArmState]:
+    """Align persisted arms with the current arm table.
+
+    Learned Beta parameters are kept for arms that still exist, arms that no
+    longer exist are dropped, and arms absent from the file get fresh priors.
+
+    This matters because ``choose_arm`` returns :data:`BASELINE_ARM_ID` during
+    the personalization warmup rather than sampling from ``state.arms``. A state
+    file written against a different arm table could omit that arm, and the
+    caller would then hand an arm_id to ``update_arm`` that the state does not
+    contain, raising ``Unknown arm_id``. Reconciling on load guarantees every
+    arm in ``DEFAULT_ARMS`` is present.
+    """
+    by_id = {arm.arm_id: arm for arm in loaded}
+    return [by_id.get(spec["arm_id"], ArmState(spec["arm_id"])) for spec in DEFAULT_ARMS]
+
+
 def load_or_init_player_state(path: Path, player_id: str) -> PlayerPolicyState:
     obj = _load_json(path)
     if not obj:
@@ -228,6 +278,10 @@ def load_or_init_player_state(path: Path, player_id: str) -> PlayerPolicyState:
             return init_player(player_id)
 
     # Use the function argument player_id, which we've validated against disk.
-    return PlayerPolicyState(player_id=player_id, runs_seen=runs_seen, arms=arms)
+    return PlayerPolicyState(
+        player_id=player_id, runs_seen=runs_seen, arms=_reconcile_arms(arms)
+    )
+
+
 def save_player_state(path: Path, state: PlayerPolicyState) -> None:
     _save_json(path, asdict(state))

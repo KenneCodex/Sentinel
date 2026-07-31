@@ -82,6 +82,15 @@ inert data. `DEFAULT_GUARDRAILS` mirrors the shipped pack and a test asserts the
 two stay identical, so relaxing a bound in the pack cannot silently diverge from
 the code that applies it.
 
+A declared value binds only if it is well-typed and inside the range the schema
+declares; otherwise that field falls back to its default. This matters because
+the pack is plain JSON that nothing validates at runtime — the schema check
+lives in the test suite, not in the loader. Without it a pack declaring
+`max_difficulty_step_per_session: 9999` would be obeyed, turning the clamp into
+a no-op and defeating the guardrail it implements. Falling back to the shipped
+default is the fail-safe direction, and `_GUARDRAIL_INT_RANGES` is asserted
+against the schema so the loader's copy of those bounds cannot drift.
+
 Two knob kinds are distinguished, because a step count does not describe a
 multiplier: step knobs (`spawn_count_per_tick`, `max_locks`, `hint_after_fails`)
 are bounded by `max_difficulty_step_per_session`; scale knobs (`base_SE_mult`,

@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from tools.msq_bandit_policy import (
@@ -126,3 +128,116 @@ def test_warmup_of_zero_permits_immediate_personalization():
 
     assert state.runs_seen == 0
     assert choose_arm(state, seed=7, guardrails=NO_WARMUP) == "E_IDLE_BOOST"
+
+
+# --- guardrail value validation ---------------------------------------------
+#
+# The content pack is plain JSON that nothing validates at runtime, so a
+# declared value must be checked before it is allowed to bind.
+
+
+@pytest.mark.parametrize(
+    "declared",
+    [
+        {"max_difficulty_step_per_session": 9999},  # would defeat the clamp
+        {"max_difficulty_step_per_session": -1},
+        {"max_difficulty_step_per_session": None},
+        {"max_difficulty_step_per_session": True},  # bool is not a step count
+        {"max_difficulty_step_per_session": "1"},
+        {"min_runs_before_personalization": "3"},  # would TypeError in choose_arm
+        {"min_runs_before_personalization": -5},  # would disable the warmup
+        {"min_runs_before_personalization": 21},
+        {"bounded_changes_only": "yes"},
+    ],
+)
+def test_invalid_guardrail_value_falls_back_to_default(tmp_path, declared):
+    from tools.msq_bandit_policy import load_guardrails
+
+    pack = tmp_path / "pack.json"
+    pack.write_text(json.dumps({"ai_tuning": {"guardrails": declared}}), encoding="utf-8")
+
+    guardrails = load_guardrails(pack)
+    for name in declared:
+        assert getattr(guardrails, name) == getattr(DEFAULT_GUARDRAILS, name)
+
+
+def test_out_of_range_step_limit_cannot_defeat_the_clamp(tmp_path):
+    pack = tmp_path / "pack.json"
+    pack.write_text(
+        json.dumps({"ai_tuning": {"guardrails": {"max_difficulty_step_per_session": 9999}}}),
+        encoding="utf-8",
+    )
+
+    from tools.msq_bandit_policy import load_guardrails
+
+    assert arm_delta("C_MORE_HINTS", load_guardrails(pack)) == {"hint_after_fails": 1}
+
+
+def test_valid_in_range_guardrail_still_binds(tmp_path):
+    from tools.msq_bandit_policy import load_guardrails
+
+    pack = tmp_path / "pack.json"
+    pack.write_text(
+        json.dumps({"ai_tuning": {"guardrails": {"max_difficulty_step_per_session": 3}}}),
+        encoding="utf-8",
+    )
+
+    guardrails = load_guardrails(pack)
+    assert guardrails.max_difficulty_step_per_session == 3
+    assert arm_delta("C_MORE_HINTS", guardrails) == {"hint_after_fails": 2}
+
+
+# --- persisted-state reconciliation -----------------------------------------
+
+
+def test_state_missing_the_baseline_arm_is_reconciled(tmp_path):
+    """choose_arm can return the baseline arm during warmup, so it must exist."""
+    from tools.msq_bandit_policy import (
+        load_or_init_player_state,
+        save_player_state,
+    )
+
+    path = tmp_path / "player.json"
+    path.write_text(
+        json.dumps(
+            {
+                "player_id": "P1",
+                "runs_seen": 0,
+                "arms": [{"arm_id": "D_MORE_LOCKS", "alpha": 4.0, "beta": 2.0}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    state = load_or_init_player_state(path, "P1")
+
+    assert {a.arm_id for a in state.arms} == {a["arm_id"] for a in DEFAULT_ARMS}
+
+    # Learned parameters for the surviving arm are preserved, not reset.
+    locks = next(a for a in state.arms if a.arm_id == "D_MORE_LOCKS")
+    assert (locks.alpha, locks.beta) == (4.0, 2.0)
+
+    # The full warmup round-trip no longer raises Unknown arm_id.
+    arm = choose_arm(state)
+    assert arm == BASELINE_ARM_ID
+    update_arm(state, arm, success=True)
+    save_player_state(path, state)
+
+
+def test_unknown_persisted_arm_is_dropped(tmp_path):
+    from tools.msq_bandit_policy import load_or_init_player_state
+
+    path = tmp_path / "player.json"
+    path.write_text(
+        json.dumps(
+            {
+                "player_id": "P1",
+                "runs_seen": 0,
+                "arms": [{"arm_id": "Z_RETIRED_ARM", "alpha": 9.0, "beta": 9.0}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    state = load_or_init_player_state(path, "P1")
+    assert "Z_RETIRED_ARM" not in {a.arm_id for a in state.arms}
