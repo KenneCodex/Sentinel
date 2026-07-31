@@ -60,31 +60,44 @@ incidental insertion. All five files now collect independently.
 | `sentinel_client_update.sh` | 244 lines, invoked by no workflow. `cli-validation.sh:171` references it only as a filename in an executable-bit check. | Retained. It is an operator-run client update script; absence from CI is expected for a deployment-side tool. |
 | `AI/LocalDex/codex_sync_log.json` | Captured drift telemetry from April 2025, referenced only in `COPILOT_RECOMMENDATIONS.md`. | Retained as a historical artifact. It is data, not code, and carries no drift risk. |
 
-### Tier 3 — Dormant declarations
+### Tier 3 — Dormant declarations (activated)
 
 These are declared contracts with no enforcing implementation. They are the most
 easily missed form of dormancy, because the declaration reads as though it is in
 force.
 
-`data/msq/content_pack_v1.json` declares `ai_tuning.guardrails`:
+`data/msq/content_pack_v1.json` declares `ai_tuning.guardrails`. All four are now
+enforced or asserted in `tools/msq_bandit_policy.py`:
 
 | Guardrail | Declared value | Enforcement |
 |---|---|---|
-| `min_runs_before_personalization` | `3` | **None.** `choose_arm()` in `tools/msq_bandit_policy.py` never consults `runs_seen`. The field is incremented by `update_arm()` and read by nothing, so personalization begins on run 1. |
-| `max_difficulty_step_per_session` | `1` | **None.** No module bounds the magnitude of an applied arm delta. |
-| `bounded_changes_only` | `true` | Satisfied structurally — `DEFAULT_ARMS` is a fixed five-arm table — but not asserted anywhere. |
+| `min_runs_before_personalization` | `3` | **Enforced.** `choose_arm()` returns the baseline arm until `runs_seen` reaches the declared warmup, so no personalization occurs before then. Previously `runs_seen` was incremented by `update_arm()` and read by nothing, and personalization began on run 1. |
+| `max_difficulty_step_per_session` | `1` | **Enforced.** `bound_delta()` clamps every step knob to ±the declared limit. This actively binds today: `C_MORE_HINTS` authors `hint_after_fails: 2` and is served as `1`. |
+| `bounded_changes_only` | `true` | **Enforced.** A knob in neither `STEP_KNOBS` nor `SCALE_KNOB_BOUNDS` has no declared bound, so `bound_delta()` refuses it rather than passing an unbounded value to the client. A test asserts every shipped arm knob is covered. |
 | `no_sensitive_inference` | `true` | Satisfied structurally; the policy state holds only `player_id` and Beta parameters. |
 
-The first two are genuine gaps between declared and actual behavior. They were
-left unimplemented here deliberately: `docs/msq_idler/README.md` scopes this
-layer to "arm selection only", and the guardrails govern how a *client* applies a
-delta, which is outside the repository. The gap is recorded so that whichever
-layer consumes the pack knows the enforcement is its responsibility and not
-inherited from these tools.
+Guardrail values are read from the pack by `load_guardrails()`, which the demo
+runner now calls — so the content pack is consumed at runtime rather than being
+inert data. `DEFAULT_GUARDRAILS` mirrors the shipped pack and a test asserts the
+two stay identical, so relaxing a bound in the pack cannot silently diverge from
+the code that applies it.
+
+Two knob kinds are distinguished, because a step count does not describe a
+multiplier: step knobs (`spawn_count_per_tick`, `max_locks`, `hint_after_fails`)
+are bounded by `max_difficulty_step_per_session`; scale knobs (`base_SE_mult`,
+`base_CE_mult`) are bounded by explicit multiplier ranges. Clamping a multiplier
+to a step count of 1 would silently neutralise it, which is why the two are not
+bounded by the same rule.
+
+`docs/msq_idler/README.md` scopes this layer to "arm selection only". Enforcing
+the guardrails here does not widen that scope: the module still only selects an
+arm and reports a bounded delta. What changed is that the delta it hands to a
+client is now guaranteed to respect the declared bounds, rather than the client
+being trusted to apply them.
 
 ## Summary
 
-- 5 components activated, with CI now executing 13 tests where it previously executed none.
+- 5 components activated, with CI now executing 26 tests where it previously executed none.
 - 1 latent defect found and fixed, uncovered by the act of activation.
 - 4 components retained with stated rationale.
-- 4 declared guardrails classified: 2 structurally satisfied, 2 recorded as unenforced by design at this layer.
+- 4 declared guardrails now enforced or asserted, where 2 previously had no implementation at all.
