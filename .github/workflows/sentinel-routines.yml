@@ -8,6 +8,9 @@ on:
       - 'README.md'
       - '**.sh'
       - '**.py'
+      - 'requirements-dev.txt'
+      - 'schemas/**'
+      - 'data/**'
   workflow_dispatch:
     inputs:
       routine:
@@ -191,6 +194,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python test dependencies
+        run: python3 -m pip install --disable-pip-version-check --quiet -r requirements-dev.txt
+
       - name: Run deterministic validation sweep
         shell: bash
         run: |
@@ -206,6 +217,9 @@ jobs:
             python3 -m compileall -q .
           fi
 
+          test_count=$(python3 -m pytest tests --collect-only -q 2>/dev/null | tail -1 | awk '{print $1}')
+          python3 -m pytest tests -q
+
           git diff --check
 
           {
@@ -213,6 +227,7 @@ jobs:
             echo
             echo "- Shell scripts syntax-checked: \`${shell_count}\`"
             echo "- Python files byte-compiled: \`${python_count}\`"
+            echo "- Python tests executed: \`${test_count}\`"
             echo '- Whitespace errors: `none`'
             echo '- Result: `pass`'
           } >> "$GITHUB_STEP_SUMMARY"

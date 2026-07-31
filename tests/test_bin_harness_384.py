@@ -1,8 +1,4 @@
 import math
-import pathlib
-import sys
-
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from tools.bin_harness_384 import canonical_string, gini_coefficient, route_bin, shannon_entropy
 

@@ -11,8 +11,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools.msq_bandit_policy import (
+    CONTENT_PACK_PATH,
     arm_delta,
     choose_arm,
+    load_guardrails,
     load_or_init_player_state,
     save_player_state,
     update_arm,
@@ -21,7 +23,7 @@ from tools.msq_state import MSQState, state_id_and_bin
 from tools.msq_telemetry import append_jsonl, new_event
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
     p.add_argument("--player-id", default="P-DEMO")
     p.add_argument("--ruleset-id", default="RS-MSQ-0001")
@@ -30,7 +32,16 @@ def main() -> None:
     p.add_argument("--events", default="audit/msq/events.jsonl")
     p.add_argument("--seed", type=int, default=123)
     p.add_argument("--success", action="store_true", help="Mark session as success to update bandit")
-    args = p.parse_args()
+    p.add_argument(
+        "--content-pack",
+        default=str(CONTENT_PACK_PATH),
+        help="Content pack supplying ai_tuning.guardrails",
+    )
+    return p
+
+
+def main() -> None:
+    args = build_parser().parse_args()
 
     session_id = f"S-{uuid.uuid4().hex[:12].upper()}"
 
@@ -49,9 +60,12 @@ def main() -> None:
     policy_path = Path(args.policy_path)
     events_path = Path(args.events)
 
+    guardrails = load_guardrails(Path(args.content_pack))
+
     pol = load_or_init_player_state(policy_path, args.player_id)
-    arm = choose_arm(pol, seed=args.seed)
-    delta = arm_delta(arm)
+    arm = choose_arm(pol, seed=args.seed, guardrails=guardrails)
+    delta = arm_delta(arm, guardrails)
+    personalized = pol.runs_seen >= guardrails.min_runs_before_personalization
 
     append_jsonl(
         events_path,
@@ -88,6 +102,8 @@ def main() -> None:
                 "session_id": session_id,
                 "chosen_arm": arm,
                 "delta": delta,
+                "personalized": personalized,
+                "runs_seen": pol.runs_seen,
                 "state_id": sid,
                 "bin_384": b,
             },

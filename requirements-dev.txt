@@ -1,0 +1,4 @@
+# Development and CI dependencies for the Python validation sweep.
+# Runtime tooling under tools/ depends only on the standard library.
+pytest>=8.0
+jsonschema>=4.21
