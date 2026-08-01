@@ -123,33 +123,53 @@ EOF
 # Function to analyze and prioritize multiple tasks from JSON input
 analyze_tasks_from_json() {
     local json_file=$1
-    
+
     if [[ ! -f "$json_file" ]]; then
         log_message "ERROR: JSON file not found: $json_file"
         return 1
     fi
-    
+
     log_message "Analyzing tasks from: $json_file"
-    
-    # Initialize audit log
-    echo "[" > "$AUDIT_LOG_FILE"
-    
+
     # Note: This requires jq for JSON parsing
     if ! command -v jq &> /dev/null; then
         log_message "WARNING: jq is not installed. JSON parsing not available."
         log_message "Please install jq for JSON batch processing."
-        echo "]" >> "$AUDIT_LOG_FILE"
+        echo "[]" > "$AUDIT_LOG_FILE"
         return 1
     fi
-    
+
     # Parse JSON and prioritize each task
     # Example JSON structure: {"tasks": [{"id": "TASK-1", "name": "...", ...}]}
     local tasks_count
     tasks_count=$(jq '.tasks | length' "$json_file")
     log_message "Found $tasks_count tasks to prioritize"
-    
-    echo "]" >> "$AUDIT_LOG_FILE"
-    
+
+    # prioritize_task appends one bare JSON object per call with no separators
+    # between entries. That is a valid stream of concatenated JSON values, but
+    # not a JSON array by itself, so the stream is slurped into a real array
+    # once every task has been written, rather than hand-joining objects with
+    # commas here (which would have to duplicate prioritize_task's formatting).
+    : > "$AUDIT_LOG_FILE"
+    while IFS=$'\t' read -r task_id task_name urgency impact effort dependencies risk; do
+        [[ -z "$task_id" ]] && continue
+        prioritize_task "$task_id" "$task_name" "$urgency" "$impact" "$effort" "$dependencies" "$risk" > /dev/null
+    done < <(jq -r '.tasks[] | [
+        (.id // .task_id // ""),
+        (.name // .task_name // ""),
+        (.urgency // 5),
+        (.impact // 5),
+        (.effort // 5),
+        (.dependencies // 0),
+        (.risk // 5)
+      ] | @tsv' "$json_file")
+
+    if [[ -s "$AUDIT_LOG_FILE" ]]; then
+        jq -s '.' "$AUDIT_LOG_FILE" > "${AUDIT_LOG_FILE}.tmp" && mv "${AUDIT_LOG_FILE}.tmp" "$AUDIT_LOG_FILE"
+    else
+        echo "[]" > "$AUDIT_LOG_FILE"
+    fi
+
     log_message "Task prioritization completed. Audit log: $AUDIT_LOG_FILE"
 }
 
