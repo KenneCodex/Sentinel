@@ -9,6 +9,7 @@ on:
     paths:
       - '.github/workflows/sentinel-routines.yml'
       - 'docs/automation-routines.md'
+      - 'docs/bughunt-routine-playbook.md'
       - 'README.md'
       - '**.sh'
       - '**.py'
@@ -19,6 +20,7 @@ on:
     paths:
       - '.github/workflows/sentinel-routines.yml'
       - 'docs/automation-routines.md'
+      - 'docs/bughunt-routine-playbook.md'
       - 'README.md'
       - '**.sh'
       - '**.py'
