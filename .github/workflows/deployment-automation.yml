@@ -63,16 +63,17 @@ jobs:
           ./multi-host-deployment.sh config
       
       - name: Execute deployment
+        id: execute_deployment
         run: |
           ./multi-host-deployment.sh deploy ${{ github.event.inputs.environment || 'development' }}
-      
+
       - name: Upload deployment logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: deployment-logs
           path: .audit-logs/deployment-*.json
-      
+
       - name: Create audit trail
         if: always()
         run: |
@@ -83,7 +84,7 @@ jobs:
             "workflow": "deployment-automation",
             "action": "deploy",
             "environment": "${{ github.event.inputs.environment || 'development' }}",
-            "status": "completed",
+            "status": "${{ steps.execute_deployment.outcome }}",
             "trigger": "${{ github.event_name }}",
             "initiator": "${{ github.actor }}",
             "metadata": {
