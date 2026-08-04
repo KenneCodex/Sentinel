@@ -47,6 +47,7 @@ Dispatch the **Sentinel Scheduled Routines** workflow from GitHub Actions and se
 
 - [**Automation Features**](AUTOMATION.md) - Comprehensive guide to all automation capabilities
 - [**Automation Routines**](docs/automation-routines.md) - Canonical source, health-state, and notification contract
+- [**Bug Finder and Fixer Playbook**](docs/bughunt-routine-playbook.md) - Step-by-step method for the bug-hunt routine, with a worked example
 - [**Copilot Recommendations**](COPILOT_RECOMMENDATIONS.md) - AI integration strategies
 - [**Pull Request Template**](.github/PULL_REQUEST_TEMPLATE.md) - Standardized PR format
 - [**Audit Logs**](.audit-logs/README.md) - Audit logging documentation
