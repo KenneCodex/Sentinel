@@ -23,6 +23,10 @@ A routine must resolve its source before performing work. Airtable governance an
 
 The workflow in `.github/workflows/sentinel-routines.yml` provides a repository-local fallback and manual dispatch target for these routines.
 
+See [`docs/bughunt-routine-playbook.md`](bughunt-routine-playbook.md) for the
+step-by-step method behind the "Bug finder and fixer" row above, including a
+worked example.
+
 ## Source-state vocabulary
 
 Every run must emit exactly one source state:
