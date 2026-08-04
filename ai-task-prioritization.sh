@@ -26,6 +26,17 @@ log_message() {
     echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $1"
 }
 
+# Function to escape a string for safe embedding as a JSON string value
+json_escape() {
+    local s=$1
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    printf '%s' "$s"
+}
+
 # Function to calculate priority score
 # Parameters: urgency(1-10), impact(1-10), effort(1-10), dependencies(0-5), risk(1-10)
 calculate_priority_score() {
@@ -83,19 +94,26 @@ prioritize_task() {
     local effort=$5
     local dependencies=$6
     local risk=$7
-    
+
     log_message "Analyzing task: $task_name (ID: $task_id)"
-    
+
     # Calculate priority score
     local score priority_level
     score=$(calculate_priority_score "$urgency" "$impact" "$effort" "$dependencies" "$risk")
     priority_level=$(get_priority_level "$score")
-    
+
+    # task_id/task_name may come from untrusted sources (e.g. GitHub issue
+    # titles) and can contain quotes/backslashes/newlines; escape them so the
+    # audit log entry stays valid JSON instead of corrupting the whole file.
+    local task_id_json task_name_json
+    task_id_json=$(json_escape "$task_id")
+    task_name_json=$(json_escape "$task_name")
+
     # Create audit log entry
     cat >> "$AUDIT_LOG_FILE" << EOF
 {
-    "task_id": "$task_id",
-    "task_name": "$task_name",
+    "task_id": "$task_id_json",
+    "task_name": "$task_name_json",
     "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
     "priority_score": $score,
     "priority_level": "$priority_level",
