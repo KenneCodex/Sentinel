@@ -1,42 +1,73 @@
 # Bug Finder and Fixer — Routine Playbook
 
-This documents the step-by-step method an agent (or a developer doing the same
-sweep by hand) followed to execute the **Bug finder and fixer** routine listed
-in `docs/automation-routines.md`, using the 2026-08-04 run as a worked example.
-It is a companion to that document, not a replacement: `automation-routines.md`
-defines the *contract* (source states, notification fields, receipts); this
-document defines the *method* used to actually reach a result.
+This playbook documents the method used by the **Bug finder and fixer** routine
+listed in `docs/automation-routines.md`. That document defines the routine's
+source-state, receipt, and notification contract; this document defines the
+investigative method used to reach a result.
 
-It is also distinct from the `bughunt` job in `.github/workflows/sentinel-routines.yml`.
-That job is a deterministic gate — syntax-check every shell script, byte-compile
-every Python file, run the test suite, check for whitespace errors — and it runs
-on every push/PR. It cannot find a bug that all of those checks pass on, which is
-exactly the class of bug this routine is for: a script that is syntactically
-valid, byte-compiles, and has no test covering it, but is still wrong.
+The 2026-08-04 run is retained as a worked example. It successfully reproduced
+one real defect, but later reconciliation showed that a parallel earlier pull
+request had already found the same defect plus two others. That miss is part of
+the record: inspecting every file is an activity claim, not proof that every
+defect was found.
 
-## When this routine runs
+The scheduled routine is also distinct from the `bughunt` job in
+`.github/workflows/sentinel-routines.yml`. The job is a deterministic gate that
+runs on qualifying pushes and pull requests selected by its path filters. It can
+check syntax, compilation, tests, and whitespace; it cannot replace adversarial
+inspection of behavior that existing tests do not cover.
 
-Configured as a scheduled Claude Code routine against `KenneCodex/Sentinel`,
-firing on its own without a live user watching. Because no one is present to
-approve risky actions mid-run, the routine is scoped to read/inspect/fix/PR —
-never to merge, force-push, or take an action a developer hasn't implicitly
-pre-authorized by configuring the routine this way.
+## Run manifest: 2026-08-04
+
+| Field | Value |
+|---|---|
+| Repository | `KenneCodex/Sentinel` |
+| Base SHA | `e3a0ab3022348590e68350ae0d8a856535a23c9f` |
+| Independent discovery commit | `8f8e02b7d117b81f57e7e1f5a243ec63e5f09df2` |
+| Methodology commit | `9cad12b0676bd13d8a13679014c4025972fbe822` |
+| Independent discovery PR | [#32](https://github.com/KenneCodex/Sentinel/pull/32) |
+| Parallel earlier PR | [#31](https://github.com/KenneCodex/Sentinel/pull/31) at `384e1b1865c06a96868473d6fbf995126d7734ca` |
+| Relationship | Partial duplicate: #31 contains the same `cli-validation.sh` fix plus two additional fixes; #32 contains the unique methodology document |
+| Canonical executable lineage | PR #31, subject to review and merge |
+| Canonical methodology lineage | PR #32 documentation after reconciliation and removal of the duplicate executable commit |
+| Exact-head CI observed for #32 | Sentinel Scheduled Routines run `30912879997`; Shell Script CI run `30912879918`; both successful |
+
+## Scope and authority
+
+The routine may read, inspect, reproduce, patch, test, commit, push, and open a
+draft pull request. It must not merge, force-push shared branches, widen
+permissions, deploy, or perform another irreversible action merely because the
+run is unattended.
+
+The output is a proposal plus evidence. A draft PR, successful local test, or
+green CI run proves only the surface actually exercised; it does not prove
+exhaustive defect coverage or runtime parity on unrelated nodes.
 
 ## Step-by-step method
 
-### 1. Orient before searching
+### 1. Synchronize the timeline before searching
 
-Before opening any file:
+Inspect both repository history and active parallel work:
 
 ```bash
-git status && git log --oneline -10 && git branch -a
+git status
+git log --oneline -10
+git branch -a
+gh pr list --state open --limit 100
+gh pr view <relevant-pr> --json number,title,headRefName,baseRefName,commits,files
 ```
 
-Confirm the working tree is clean and identify what the last few merged PRs
-already touched. Bugs found in a subsystem someone just finished hardening
-(three commits ago) are a weaker use of a scheduled run than bugs in code no
-one has looked at recently — check the recent log before spending a pass on a
-file that was just reviewed.
+Record the exact base SHA. Search open PRs for paths, functions, and symptoms
+likely to overlap the area under review. Classify each relevant lineage as:
+
+- already addressed;
+- partial duplicate requiring consolidation;
+- independent;
+- superseded;
+- unresolved pending comparison.
+
+Do not infer PR scope from a remote branch name alone. The 2026-08-04 run missed
+PR #31, which already contained the same shell fix and two additional defects.
 
 ### 2. Inventory the actual surface
 
@@ -45,46 +76,64 @@ find . -type f -not -path '*/.git/*' | sort
 wc -l tools/*.py tests/*.py
 ```
 
-List every file, not just the ones a keyword search would surface. This
-repository's real bug this run was in a `.sh` file — a keyword search for
-"bug"-shaped terms (`null`, `TODO`, `FIXME`) would not have found it, because
-the defect was a control-flow interaction (`set -e` plus a bare function call),
-not a marked-up code smell.
+List every relevant source, test, workflow, schema, and operational document.
+Do not substitute a keyword search for an inventory: control-flow defects often
+have no `TODO`, `FIXME`, or other textual signature.
 
-### 3. Read every file in full, not excerpts
+### 3. Read each relevant file end-to-end
 
-For a codebase this size (~1,900 lines across Python tools/tests and shell
-scripts), read each file end-to-end with the `Read` tool rather than grepping
-for suspicious patterns. Grepping for `null`/`except:`/`TODO` finds *labeled*
-bugs; it misses logic bugs that look like ordinary control flow. The bug this
-run — `check_command` returning `1` under `set -e` — has no keyword signature
-at all; it only shows up by reading `validate_required_tools()` and asking
-"what happens if this specific call fails."
+For a repository of manageable size, read complete files rather than isolated
+search excerpts. Check behavior against callers, comments, documentation, data
+schemas, and workflow assumptions.
 
-While reading, check each file against the bug classes named in the routine's
-brief:
+Core defect classes include:
 
-- Null/attribute dereference on a value that can be `None`/missing
-- Off-by-one in a loop bound, slice, or index
-- Missing error handling on an operation that can fail (I/O, subprocess,
-  network, parse)
-- Race conditions (shared mutable state touched by more than one path)
-- Logic errors: a function's behavior doesn't match its docstring or its
-  only caller's assumption about it
+- missing or null values used without validation;
+- off-by-one bounds, slices, counters, and thresholds;
+- missing error handling around I/O, subprocesses, network calls, and parsing;
+- races or unsafe shared-state mutation;
+- logic that contradicts the function's stated or caller-observed intent;
+- incorrect audit or status claims;
+- dormant code whose apparent validity has never been exercised.
 
-For each file, also ask **"is this dead code, a documented stub, or a decoy
-before I burn time on it?"** `multi-host-deployment.sh`'s `deploy_environment`
-function logs `"Note: This is a framework implementation for demonstration"`
-and deliberately does not deploy anything — that is not a bug, and "fixing" it
-would mean inventing a deployment implementation nobody asked for. Recognizing
-an intentional stub and moving on is part of the method, not a shortcut around
-it.
+Reading every file does not justify saying “no defect exists.” The evidence-bound
+wording is: **reviewed; no defect identified during this run**.
 
-### 4. Don't trust a static read — reproduce it
+### 4. Perform a separate security and trust-boundary pass
 
-Reading code tells you what a bug *might* do; running it tells you what it
-*does* do. For the `cli-validation.sh` bug, the mechanism (`set -e` aborting on
-a bare failing call) is a well-known bash gotcha, confirmed first in isolation:
+Correctness inspection is not enough for automation repositories. Check:
+
+- untrusted issue, PR, dispatch, or network content crossing into shell code;
+- GitHub expression interpolation inside `run:` blocks;
+- command, JSON, YAML, path, or log injection;
+- secrets, credentials, tokens, and permission scope;
+- third-party Actions pinned to mutable branches or tags;
+- unsafe temporary files, replacement, traversal, or symlink behavior;
+- audit records that claim success more broadly than the action performed;
+- external inputs that can weaken a declared guardrail.
+
+The 2026-08-04 parallel lineage found a GitHub Actions script-injection path that
+the narrower run missed. This security pass is therefore mandatory, not
+optional hardening.
+
+### 5. Distinguish defects from intentional boundaries
+
+Before patching, determine whether the suspicious behavior is:
+
+- a defect;
+- an intentional stub or demonstration boundary;
+- dormant but deliberately retained;
+- a feature request rather than a repair;
+- historical evidence that should not execute.
+
+For example, `multi-host-deployment.sh` explicitly describes its deployment
+function as a demonstration framework. Implementing real deployment there
+without a separate decision would expand authority rather than fix a bug.
+
+### 6. Reproduce before trusting a static read
+
+First isolate language or platform semantics, then reproduce against the actual
+code. For the `set -e` interaction:
 
 ```bash
 bash -c '
@@ -94,158 +143,173 @@ f
 echo "after f"
 '
 echo "exit code: $?"
-# -> "after f" never prints; exit code 1
 ```
 
-Then reproduced against the actual script by building a minimal sandboxed
-`PATH` that has every required tool *except* one, so `check_command` hits its
-`return 1` branch for real:
+Then create a throwaway `PATH` that omits one required tool without modifying the
+host:
 
 ```bash
 SCRATCH=/path/to/scratchpad
 mkdir -p "$SCRATCH/fakebin"
-# Symlink every tool the script needs EXCEPT the one you're testing the
-# missing-tool path for (here, deliberately omitting awk):
 for c in bash sh cat grep sed git curl date mkdir uname hostname find head; do
   ln -sf "$(command -v "$c")" "$SCRATCH/fakebin/$c"
 done
-PATH="$SCRATCH/fakebin" bash ./cli-validation.sh; echo "EXIT CODE: $?"
+PATH="$SCRATCH/fakebin" bash ./cli-validation.sh
+echo "exit code: $?"
 ```
 
-This is the reusable technique for any "script behaves differently when tool X
-is missing/absent" hypothesis: build the minimal `PATH`, don't disable
-anything on the real host, and delete the scratch directory afterward.
+A reproduction receipt should state the exact checkout, environment, command,
+exit code, and observed output shape.
 
-### 5. Isolate root cause before writing the fix
+### 7. Reconcile the finding against parallel lineages
 
-Confirm *why*, not just *that*. Here: `check_command()` explicitly
-`return 1`s when a required tool is missing; every call site in
-`validate_required_tools()` invokes it as a bare statement; none of them check
-the return value in an `if`/`&&`/`||`; the script runs under `set -e`. All four
-facts together produce the abort — dropping any one of them means the fix
-targets the wrong layer (e.g., "just remove `set -e`" would silence the abort
-but also silence every *other* real failure the script should catch).
+Before writing or publishing a patch, compare the finding with active PRs and
+recent commits. If another lineage already fixes it:
 
-### 6. Apply the smallest fix that addresses the root cause
+- avoid creating a competing canonical implementation;
+- determine whether the new run adds stronger reproduction, tests, or method;
+- preserve independent rediscovery as evidence;
+- route unique additions into a follow-up branch or consolidation PR.
 
-Preferred over larger restructuring: add `|| true` at each of the 8 call sites
-in `validate_required_tools()` that pass `required=true`, plus a one-line
-comment explaining *why* the `|| true` is there (so a future reader doesn't
-mistake it for a copy-paste artifact and delete it). This preserves every
-existing behavior — `FAILED_CHECKS` still increments, the final exit code is
-still non-zero when a required tool is missing — while letting the rest of the
-sweep run to completion.
+Independent rediscovery is valuable evidence of reproducibility, but it does not
+need a second merge of the same code change.
 
-Calls with `required=false` were left untouched: `check_command` returns `0`
-on that path even when the tool is absent, so they were never at risk.
+### 8. Isolate the full root cause
 
-### 7. Verify the fix, not just the absence of an error
+Confirm every condition required to produce the failure. For the validation
+bug:
 
-Re-run the exact repro from step 4 against the patched script and confirm the
-*shape* of the output changed (full summary + audit log produced, not just
-"no crash"):
+1. `check_command()` returns `1` for a missing required tool;
+2. required-tool callers invoked it as a bare statement;
+3. no `if`, `&&`, or `||` consumed that status;
+4. the script runs under `set -e`.
+
+A patch aimed only at the symptom, such as removing `set -e`, would weaken other
+failure handling and target the wrong layer.
+
+### 9. Apply the smallest root-cause fix
+
+Prefer a narrow change that preserves intended behavior. In this case, adding
+`|| true` to required-tool checks lets the sweep continue while the existing
+counter still records the failure and the final process status remains nonzero.
+Document non-obvious control-flow safeguards so a future cleanup does not remove
+them as apparent noise.
+
+### 10. Re-verify the same failure and broader gates
+
+Run the exact reproduction against the patched state and verify the full outcome
+shape, not merely the absence of a crash:
 
 ```bash
 PATH="$SCRATCH/fakebin" bash ./cli-validation.sh 2>&1 | tail -40
-```
-
-Then run the project's broader gates so the fix hasn't regressed anything
-outside its own file:
-
-```bash
-bash -n cli-validation.sh                 # syntax
+bash -n cli-validation.sh
 python3 -m pip install -q -r requirements-dev.txt
-python3 -m pytest -q                      # 40 passed
+python3 -m pytest -q
 ```
 
-`shellcheck` was not installed in the sandbox for this run — noted rather than
-skipped silently, since `shell-script-ci.yml` runs it in CI and it should be
-run locally when available.
+Run ShellCheck and repository-native CI when available. Record unavailable tools
+or skipped surfaces explicitly.
 
-### 8. Clean up what the verification pass created
+### 11. Clean verification artifacts
 
-The repro and test runs write real artifacts (`.audit-logs/cli-validation-*.json`
-in this case). Remove anything the *verification* process generated before
-committing — `git status --porcelain` should show only the intended file
-change, and the scratch `PATH` sandbox directory under the session scratchpad
-gets deleted, not committed.
-
-### 9. Commit with the root cause and repro in the message
-
-The commit message states the mechanism (`set -e` + bare failing call), how it
-was confirmed (the `awk`-stripped-`PATH` repro), and what the fix preserves
-(failure is still recorded and still reflected in the exit code) — enough for
-a reviewer to evaluate the fix without re-deriving it from the diff alone.
-
-### 10. Push, then open a draft PR filled from the actual diff
+Remove scratch directories and audit files created only by the reproduction.
+Before committing:
 
 ```bash
-git push -u origin <branch>
+git status --porcelain
 ```
 
-Before opening the PR, check for a template (`.github/PULL_REQUEST_TEMPLATE.md`
-here) and populate every section from the real change — the template's
-sections become the PR body's structure, not a checklist to follow literally.
-Sections that ask for things unrelated to the diff (credentials, deployment
-steps for a change with no deployment) are answered "N/A" or skipped rather
-than invented. The PR is opened as a **draft** — this routine proposes fixes
-for review, it does not merge them.
+The output should contain only intended source, test, workflow, and documentation
+changes.
 
-### 11. Subscribe to PR activity and drive it, don't abandon it
+### 12. Commit with lineage and evidence
 
-After creating the PR, subscribe to its activity and stay attached to it:
-diagnose and push a fix for real CI failures, reply to review comments that
-need a response, and skip bot noise that requires no action (e.g., a
-third-party review bot announcing its own service is sunset). A PR this
-routine opened is not "done" until it is merged or closed — the routine's job
-includes watching it to that point, not just filing it.
+The commit message should include:
 
-### 12. Notify, don't just log
+- the root cause;
+- the reproduction;
+- the behavior preserved by the fix;
+- the source routine or agent provenance;
+- any known overlap with another PR or commit.
 
-Because this runs unattended, the result has to reach a person through a
-channel they'll actually see (push notification / email), not just sit in a
-session transcript nobody opens. The notification should be actionable on its
-own: what was found, what changed, where the PR is — enough that someone could
-act on it without opening the session.
+Do not wait until review to disclose a partial duplicate.
+
+### 13. Open a draft PR from the actual diff
+
+Populate the repository template from the committed change. State what was and
+was not tested. If the PR later gains a second commit or new change class, update
+the PR body so it continues to describe the actual diff.
+
+A draft PR is a proposal and a locator. It is not a final archival identifier;
+record the final merge SHA and disposition when the lineage closes.
+
+### 14. Drive the PR and resolve the future-state fork
+
+Stay attached to CI, review, and overlap changes. The possible outcomes are:
+
+- merge as canonical;
+- rebase and drop duplicated commits;
+- consolidate unique changes into another PR;
+- close as superseded while preserving its evidence;
+- revise after a contradictory later observation.
+
+For the 2026-08-04 lineages, the intended checkpoint is:
+
+1. review and merge PR #31 as the broader executable lineage;
+2. rebase PR #32 onto the resulting `main`;
+3. drop the duplicate `8f8e02b` shell-fix commit;
+4. retain the corrected methodology documentation;
+5. rerun CI against the new exact head;
+6. record final merge SHAs in this manifest.
+
+### 15. Notify actionably
+
+Because the routine is unattended, send a notification that states:
+
+- what was found;
+- what changed;
+- where the evidence and PR are;
+- whether another lineage overlaps;
+- what human decision or next action remains.
+
+A notification is an index to evidence, not a replacement for the receipt.
 
 ## Reusable checklist
 
-For the next run of this routine (agent or human):
+1. Record the exact base SHA and clean working-tree state.
+2. Inspect recent commits and all open PRs for overlapping paths or symptoms.
+3. Inventory the complete relevant file surface.
+4. Read each relevant file end-to-end.
+5. Run both correctness and security/trust-boundary passes.
+6. Separate defects from stubs, dormant components, features, and archives.
+7. Reproduce the suspected failure in isolation and against the real code.
+8. Reconcile the finding against parallel PR and commit lineages.
+9. Establish the complete root cause.
+10. Apply the smallest root-cause fix.
+11. Re-run the same reproduction and broader project gates.
+12. Remove verification artifacts and confirm the intended diff.
+13. Commit with evidence, provenance, and overlap disclosure.
+14. Open or update a draft PR so its body matches the actual diff.
+15. Drive the lineage to merge, consolidation, supersession, or explicit closure.
+16. Notify with the result, receipt, overlap state, and next decision.
 
-1. `git status && git log --oneline -10` — orient
-2. `find . -type f -not -path '*/.git/*' | sort` — full inventory, not a
-   keyword search
-3. Read every source file end-to-end; check each against: null/attribute
-   deref, off-by-one, missing error handling, race conditions, logic errors
-   vs. stated intent
-4. Distinguish real bugs from intentional stubs/placeholders before spending
-   time on either
-5. Reproduce the hypothesized failure before trusting a static read —
-   isolate the mechanism in a throwaway one-liner first if it's a language
-   gotcha (like `set -e` semantics), then reproduce against the real script
-6. Confirm root cause covers every contributing factor, not just the
-   symptom
-7. Apply the smallest fix that addresses the root cause; comment the
-   non-obvious part so it survives the next refactor
-8. Re-run the same repro against the fix and confirm the *shape* of the
-   outcome changed, then run the project's broader test/syntax/lint gates
-9. Delete artifacts the verification pass created; confirm `git status`
-   shows only the intended change
-10. Commit with root cause + repro in the message
-11. Push, open a draft PR from the repo's template populated from the real
-    diff
-12. Subscribe to the PR and drive it to green / respond to review, skipping
-    only genuine no-ops
-13. Send an actionable notification — what was found, what changed, where
-    the receipt is
+## Worked example: evidence-bounded record
 
-## Worked example from this run
-
-| Step | Artifact |
+| Step | Artifact or observation |
 |---|---|
-| Bug found | `cli-validation.sh`: `check_command()` returns `1` for a missing required tool; called bare under `set -e`, it aborted the whole validation run at the first missing required tool, skipping every later check, the audit log, and the summary |
-| Repro | `PATH` sandbox with `awk` omitted; script died immediately after logging `awk is not installed (REQUIRED)` |
-| Fix | `\|\| true` at each `required=true` call site in `validate_required_tools()`, plus an explanatory comment |
-| Verification | Same repro re-run (full summary now produced, exit `1` as expected because two checks still legitimately fail in that sandbox); `bash -n`; `pytest -q` (40 passed, unaffected) |
-| Receipt | Commit `8f8e02b`, branch `claude/adoring-hopper-2zk1zv`, draft PR [#32](https://github.com/KenneCodex/Sentinel/pull/32) |
-| Files reviewed with no fix needed | `tools/msq_bandit_policy.py`, `tools/bin_harness_384.py`, `tools/msq_state.py`, `tools/msq_telemetry.py`, `tools/msq_demo_run.py`, `tools/add_line_numbers.py` (all covered by passing tests, no defect found); `ai-task-prioritization.sh`, `multi-host-deployment.sh`, `sentinel_client_update.sh` (reviewed; `multi-host-deployment.sh`'s deploy stub is an intentional, documented placeholder, not a bug) |
+| Defect independently found | `cli-validation.sh`: a required `check_command()` returned `1`; as a bare statement under `set -e`, it ended the sweep before later checks, the audit log, and the summary |
+| Reproduction | A scratch `PATH` omitted `awk`; the script stopped immediately after reporting the missing required tool |
+| Narrow fix | `|| true` at required-tool call sites, preserving recorded failure and final nonzero status while allowing the full sweep to finish |
+| Local verification | Same reproduction reached the full summary; `bash -n` passed; `pytest -q` reported 40 passing tests |
+| Repository-native verification | PR #32 head `9cad12b` completed Sentinel Scheduled Routines run `30912879997` and Shell Script CI run `30912879918` successfully |
+| Parallel lineage discovered during review | PR #31, created earlier from the same base, contained the same shell fix plus a GitHub Actions injection fix and a JSON batch-processing fix |
+| Coverage correction | Files were read during the run, but at least two defects were not identified. The record therefore says “reviewed; no defect identified during this run,” not “no defect found” |
+| Lineage disposition | Preserve PR #32 as independent rediscovery and methodology evidence; use PR #31 as the canonical executable lineage; rebase PR #32 and drop its duplicate code commit after #31 is resolved |
+| Intentional boundary | `multi-host-deployment.sh`'s documented demonstration stub remained unchanged pending a separate authority decision |
+
+## Evidence rule
+
+Observed state outranks narration. A run may honestly claim what it inspected,
+reproduced, changed, and verified. It may not convert those facts into a claim of
+exhaustive defect absence without a separately defined and satisfied completeness
+standard.
