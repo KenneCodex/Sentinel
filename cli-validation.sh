@@ -118,18 +118,21 @@ validate_required_tools() {
     log_message "=== Validating Required CLI Tools ==="
     
     # Core system tools
-    check_command "bash" true
-    check_command "sh" true
-    check_command "cat" true
-    check_command "grep" true
-    check_command "sed" true
-    check_command "awk" true
-    
+    # `|| true` is required here: check_command returns 1 for a missing
+    # required tool, and under `set -e` a bare failing call would abort the
+    # script immediately, skipping every later check and the final summary.
+    check_command "bash" true || true
+    check_command "sh" true || true
+    check_command "cat" true || true
+    check_command "grep" true || true
+    check_command "sed" true || true
+    check_command "awk" true || true
+
     # Version control
-    check_command "git" true
-    
+    check_command "git" true || true
+
     # Network tools
-    check_command "curl" true
+    check_command "curl" true || true
     check_command "wget" false
     
     # Text processing
