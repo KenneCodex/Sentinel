@@ -147,9 +147,47 @@ analyze_tasks_from_json() {
     local tasks_count
     tasks_count=$(jq '.tasks | length' "$json_file")
     log_message "Found $tasks_count tasks to prioritize"
-    
+
+    local idx task_id task_name urgency impact effort dependencies risk
+    local score priority_level
+    for ((idx = 0; idx < tasks_count; idx++)); do
+        task_id=$(jq -r ".tasks[$idx].id" "$json_file")
+        task_name=$(jq -r ".tasks[$idx].name" "$json_file")
+        urgency=$(jq -r ".tasks[$idx].urgency" "$json_file")
+        impact=$(jq -r ".tasks[$idx].impact" "$json_file")
+        effort=$(jq -r ".tasks[$idx].effort" "$json_file")
+        dependencies=$(jq -r ".tasks[$idx].dependencies" "$json_file")
+        risk=$(jq -r ".tasks[$idx].risk" "$json_file")
+
+        score=$(calculate_priority_score "$urgency" "$impact" "$effort" "$dependencies" "$risk")
+        priority_level=$(get_priority_level "$score")
+
+        if [[ "$idx" -gt 0 ]]; then
+            echo "," >> "$AUDIT_LOG_FILE"
+        fi
+
+        cat >> "$AUDIT_LOG_FILE" << EOF
+  {
+    "task_id": "$task_id",
+    "task_name": "$task_name",
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "priority_score": $score,
+    "priority_level": "$priority_level",
+    "factors": {
+      "urgency": $urgency,
+      "impact": $impact,
+      "effort": $effort,
+      "dependencies": $dependencies,
+      "risk": $risk
+    }
+  }
+EOF
+
+        log_message "Task $task_id ($task_name): Priority Score: $score | Level: $priority_level"
+    done
+
     echo "]" >> "$AUDIT_LOG_FILE"
-    
+
     log_message "Task prioritization completed. Audit log: $AUDIT_LOG_FILE"
 }
 
