@@ -109,6 +109,27 @@ python3 tools/archivist_bug_admission.py \
   --output .audit-logs/bughunt/RUN-BUGHUNT-20260806-002.json
 ```
 
+## Workflow integration
+
+`.github/workflows/sentinel-routines.yml` invokes the gate after its
+deterministic validation sweep.
+
+- A completed syntax, compilation, test, and whitespace sweep emits a durable
+  `CLEAN` receipt for that **bounded deterministic surface**.
+- A failed or incomplete sweep emits `BLOCKED`; it does not claim that the
+  repository is clean.
+- The receipt records the exact tested checkout, observed file and test counts,
+  and a run identifier derived from the Actions run and attempt.
+- The workflow uploads the receipt as a 90-day artifact and includes its
+  archival result and run ID in the notification job.
+- When the bughunt job was not selected, the notification says so rather than
+  manufacturing a clean or blocked result.
+
+This workflow integration does not replace the semantic external bug-finder.
+The deterministic job cannot identify behavioral defects that its checks do not
+exercise. An external agent that reproduces a candidate must still call the
+gate in candidate mode, include open-PR metadata, and obey `pr_allowed`.
+
 ## Current seeded lineage
 
 `data/bughunt/defect_registry_v1.json` records the `cli-validation.sh`
