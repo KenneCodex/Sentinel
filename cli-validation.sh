@@ -2,8 +2,13 @@
 
 # CLI Validation Script for Sentinel
 # Validates CLI tools, configurations, and runtime environment
-
-set -e
+#
+# Intentionally does not `set -e`: this script's job is to run every
+# check and report a full summary at the end. check_command() (and other
+# helpers) return non-zero for a failed/missing check purely to signal
+# that fact to the reader; under `set -e` that non-zero status, hit from
+# an unguarded call site, would abort the whole run at the first failing
+# check instead of completing the report.
 
 # Configuration
 AUDIT_LOG_DIR="./.audit-logs"
