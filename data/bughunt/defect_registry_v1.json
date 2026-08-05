@@ -1,0 +1,22 @@
+{
+  "schema_version": "bughunt_defect_registry_v1",
+  "entries": [
+    {
+      "defect_id": "BUG-BED4D92BA8F4",
+      "fingerprint": "bed4d92ba8f444f35f911c2ddd68cc146e13a1cbc316dabe80435605d4618157",
+      "repository": "KenneCodex/Sentinel",
+      "component": "cli-validation.sh",
+      "failure_class": "premature_exit",
+      "trigger": "required command missing under set -e",
+      "affected_symbol": "validate_required_tools",
+      "normalized_root_cause": "unguarded nonzero function return",
+      "status": "candidate",
+      "canonical_pr": 31,
+      "duplicate_prs": [32, 33],
+      "observed_base_shas": [
+        "e3a0ab3022348590e68350ae0d8a856535a23c9f"
+      ],
+      "notes": "PRs 31, 32, and 33 independently proposed the same required-tool guard. PR 31 is the prospective canonical executable lineage because it also carries two additional independently verified fixes."
+    }
+  ]
+}
