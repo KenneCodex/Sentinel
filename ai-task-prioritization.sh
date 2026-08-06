@@ -123,33 +123,57 @@ EOF
 # Function to analyze and prioritize multiple tasks from JSON input
 analyze_tasks_from_json() {
     local json_file=$1
-    
+
     if [[ ! -f "$json_file" ]]; then
         log_message "ERROR: JSON file not found: $json_file"
         return 1
     fi
-    
+
     log_message "Analyzing tasks from: $json_file"
-    
-    # Initialize audit log
-    echo "[" > "$AUDIT_LOG_FILE"
-    
+
     # Note: This requires jq for JSON parsing
     if ! command -v jq &> /dev/null; then
         log_message "WARNING: jq is not installed. JSON parsing not available."
         log_message "Please install jq for JSON batch processing."
-        echo "]" >> "$AUDIT_LOG_FILE"
         return 1
     fi
-    
-    # Parse JSON and prioritize each task
-    # Example JSON structure: {"tasks": [{"id": "TASK-1", "name": "...", ...}]}
+
+    if ! jq -e '.tasks' "$json_file" &> /dev/null; then
+        log_message "ERROR: $json_file is not valid JSON or is missing a top-level 'tasks' array"
+        return 1
+    fi
+
+    # Parse JSON and prioritize each task.
+    # Example JSON structure: {"tasks": [{"id": "TASK-1", "name": "...", "urgency": 5, ...}]}
     local tasks_count
     tasks_count=$(jq '.tasks | length' "$json_file")
     log_message "Found $tasks_count tasks to prioritize"
-    
-    echo "]" >> "$AUDIT_LOG_FILE"
-    
+
+    if [[ "$tasks_count" -eq 0 ]]; then
+        echo "[]" > "$AUDIT_LOG_FILE"
+        log_message "Task prioritization completed. Audit log: $AUDIT_LOG_FILE"
+        return 0
+    fi
+
+    # Each task_id/task_name is passed as a single field, so escape tabs/newlines
+    # via @tsv and split on the field separator only.
+    local task_id task_name urgency impact effort dependencies risk
+    while IFS=$'\t' read -r task_id task_name urgency impact effort dependencies risk; do
+        prioritize_task "$task_id" "$task_name" "$urgency" "$impact" "$effort" "$dependencies" "$risk"
+    done < <(jq -r '
+        .tasks[]
+        | [
+            (.id // "TASK-UNKNOWN"),
+            (.name // "Untitled task"),
+            (.urgency // 5),
+            (.impact // 5),
+            (.effort // 5),
+            (.dependencies // 0),
+            (.risk // 5)
+          ]
+        | @tsv
+    ' "$json_file")
+
     log_message "Task prioritization completed. Audit log: $AUDIT_LOG_FILE"
 }
 
