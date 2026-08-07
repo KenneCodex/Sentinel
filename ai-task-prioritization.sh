@@ -74,6 +74,21 @@ get_priority_level() {
     fi
 }
 
+# Function to JSON-escape a string for safe embedding inside a quoted JSON value.
+# Without this, a task_id/task_name containing a double quote, backslash, or
+# newline produces invalid JSON in the audit log. Since summarize_recent_tasks
+# feeds every log file into a single `jq -s` call, one malformed file breaks
+# the summary for the entire history, not just that task.
+json_escape_string() {
+    local s=$1
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    printf '%s' "$s"
+}
+
 # Function to prioritize task
 prioritize_task() {
     local task_id=$1
@@ -83,19 +98,23 @@ prioritize_task() {
     local effort=$5
     local dependencies=$6
     local risk=$7
-    
+
     log_message "Analyzing task: $task_name (ID: $task_id)"
-    
+
     # Calculate priority score
     local score priority_level
     score=$(calculate_priority_score "$urgency" "$impact" "$effort" "$dependencies" "$risk")
     priority_level=$(get_priority_level "$score")
-    
+
+    local task_id_json task_name_json
+    task_id_json=$(json_escape_string "$task_id")
+    task_name_json=$(json_escape_string "$task_name")
+
     # Create audit log entry
     cat >> "$AUDIT_LOG_FILE" << EOF
 {
-    "task_id": "$task_id",
-    "task_name": "$task_name",
+    "task_id": "$task_id_json",
+    "task_name": "$task_name_json",
     "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
     "priority_score": $score,
     "priority_level": "$priority_level",
