@@ -74,7 +74,11 @@ def numbered_text(text: str, width: int) -> str:
 
 
 def write_numbered_copy(path: Path, root: Path, output_root: Path, width: int, force: bool) -> Path | None:
-    text = path.read_text(encoding="utf-8")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        print(f"Skipping non-UTF-8 file: {path} ({exc})")
+        return None
     lines = text.splitlines()
     if already_numbered(lines) and not force:
         return None
@@ -87,7 +91,11 @@ def write_numbered_copy(path: Path, root: Path, output_root: Path, width: int, f
 
 
 def number_in_place(path: Path, width: int, force: bool) -> bool:
-    text = path.read_text(encoding="utf-8")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        print(f"Skipping non-UTF-8 file: {path} ({exc})")
+        return False
     lines = text.splitlines()
     if already_numbered(lines) and not force:
         return False

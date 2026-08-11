@@ -8,7 +8,8 @@ set -e
 # Configuration
 AUDIT_LOG_DIR="./.audit-logs"
 TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
-AUDIT_LOG_FILE="$AUDIT_LOG_DIR/cli-validation-$TIMESTAMP.json"
+# $$ avoids two runs within the same second silently overwriting each other's log.
+AUDIT_LOG_FILE="$AUDIT_LOG_DIR/cli-validation-$TIMESTAMP-$$.json"
 
 # Colors for output
 RED='\033[0;31m'
@@ -118,20 +119,26 @@ validate_required_tools() {
     log_message "=== Validating Required CLI Tools ==="
     
     # Core system tools
-    check_command "bash" true
-    check_command "sh" true
-    check_command "cat" true
-    check_command "grep" true
-    check_command "sed" true
-    check_command "awk" true
-    
+    #
+    # check_command returns 1 for a missing required tool; called bare like
+    # this, that return code would trip `set -e` and abort the whole script
+    # on the first missing tool, skipping every remaining check and the
+    # summary/audit log. `|| true` lets validation continue reporting on all
+    # tools instead of stopping at the first failure.
+    check_command "bash" true || true
+    check_command "sh" true || true
+    check_command "cat" true || true
+    check_command "grep" true || true
+    check_command "sed" true || true
+    check_command "awk" true || true
+
     # Version control
-    check_command "git" true
-    
+    check_command "git" true || true
+
     # Network tools
-    check_command "curl" true
+    check_command "curl" true || true
     check_command "wget" false
-    
+
     # Text processing
     check_command "jq" false
     

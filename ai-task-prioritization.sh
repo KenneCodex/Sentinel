@@ -9,7 +9,9 @@ set -e
 PRIORITY_CONFIG_FILE="${PRIORITY_CONFIG_FILE:-./.audit-logs/priority-config.json}"
 AUDIT_LOG_DIR="./.audit-logs"
 TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
-AUDIT_LOG_FILE="$AUDIT_LOG_DIR/task-prioritization-$TIMESTAMP.json"
+# $$ avoids two runs within the same second racing on the same append-mode
+# log file, which can interleave writes into invalid JSON.
+AUDIT_LOG_FILE="$AUDIT_LOG_DIR/task-prioritization-$TIMESTAMP-$$.json"
 
 # Ensure audit log directory exists
 mkdir -p "$AUDIT_LOG_DIR"
@@ -24,6 +26,19 @@ WEIGHT_RISK=0.10
 # Function to log messages
 log_message() {
     echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $1"
+}
+
+# Escape a string for embedding inside a JSON string literal. Without this,
+# a task name/id containing a `"` or `\` produces invalid JSON in the audit
+# log, which then breaks summarize_recent_tasks's `jq -s` parse of that file.
+json_escape() {
+    local s=$1
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    printf '%s' "$s"
 }
 
 # Function to calculate priority score
@@ -92,10 +107,13 @@ prioritize_task() {
     priority_level=$(get_priority_level "$score")
     
     # Create audit log entry
+    local task_id_json task_name_json
+    task_id_json=$(json_escape "$task_id")
+    task_name_json=$(json_escape "$task_name")
     cat >> "$AUDIT_LOG_FILE" << EOF
 {
-    "task_id": "$task_id",
-    "task_name": "$task_name",
+    "task_id": "$task_id_json",
+    "task_name": "$task_name_json",
     "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
     "priority_score": $score,
     "priority_level": "$priority_level",
