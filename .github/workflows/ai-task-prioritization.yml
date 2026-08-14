@@ -67,37 +67,44 @@ jobs:
       
       - name: Calculate task priority (Issue)
         if: github.event_name == 'issues'
+        env:
+          # Untrusted issue content is passed through the environment, not
+          # interpolated into the script, so an issue title/label crafted as
+          # shell metacharacters cannot inject commands into this runner.
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_LABELS: ${{ join(github.event.issue.labels.*.name, ' ') }}
         run: |
           # Extract priority indicators from issue labels and content
           # This is a simplified example - in production, parse issue content
-          
+
           URGENCY=5
           IMPACT=5
           EFFORT=5
           DEPENDENCIES=0
           RISK=5
-          
+
           # Check for priority labels
-          if echo "${{ join(github.event.issue.labels.*.name, ' ') }}" | grep -q "critical"; then
+          if echo "$ISSUE_LABELS" | grep -q "critical"; then
             URGENCY=9
             IMPACT=9
             RISK=9
-          elif echo "${{ join(github.event.issue.labels.*.name, ' ') }}" | grep -q "high"; then
+          elif echo "$ISSUE_LABELS" | grep -q "high"; then
             URGENCY=7
             IMPACT=7
             RISK=7
           fi
-          
+
           # Check for effort labels
-          if echo "${{ join(github.event.issue.labels.*.name, ' ') }}" | grep -q "effort:high"; then
+          if echo "$ISSUE_LABELS" | grep -q "effort:high"; then
             EFFORT=8
-          elif echo "${{ join(github.event.issue.labels.*.name, ' ') }}" | grep -q "effort:low"; then
+          elif echo "$ISSUE_LABELS" | grep -q "effort:low"; then
             EFFORT=3
           fi
-          
+
           ./ai-task-prioritization.sh \
-            "ISSUE-${{ github.event.issue.number }}" \
-            "${{ github.event.issue.title }}" \
+            "ISSUE-${ISSUE_NUMBER}" \
+            "$ISSUE_TITLE" \
             "$URGENCY" \
             "$IMPACT" \
             "$EFFORT" \
