@@ -103,6 +103,7 @@ echo_log "✅ Permissions set for Sentinel Client."
 
 # 🛠 Step 4: Create Desktop Shortcut (Linux Only)
 if [[ "${OSTYPE:-}" == "linux-gnu"* ]]; then
+    mkdir -p "$HOME/Desktop"
     cat > "$HOME/Desktop/SentinelClient.desktop" <<DESKTOP
 [Desktop Entry]
 Version=1.0
