@@ -29,6 +29,16 @@ safe_load_dotenv() {
         if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
             local key="${BASH_REMATCH[1]}"
             local value="${BASH_REMATCH[2]}"
+
+            # Strip a single matching pair of surrounding quotes, as is
+            # standard .env convention (e.g. CODEX_PHASE="Phase 19"), so the
+            # quote characters don't end up embedded in the exported value.
+            if [[ "$value" =~ ^\"(.*)\"$ ]]; then
+                value="${BASH_REMATCH[1]}"
+            elif [[ "$value" =~ ^\'(.*)\'$ ]]; then
+                value="${BASH_REMATCH[1]}"
+            fi
+
             export "$key=$value"
         else
             echo "Warning: Skipping invalid line in $dotenv_file: $line" >&2
