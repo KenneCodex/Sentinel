@@ -9,7 +9,8 @@ set -e
 DEPLOYMENT_CONFIG_FILE="${DEPLOYMENT_CONFIG_FILE:-./deployment-config.json}"
 AUDIT_LOG_DIR="./.audit-logs"
 TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
-AUDIT_LOG_FILE="$AUDIT_LOG_DIR/deployment-$TIMESTAMP.json"
+# $$ avoids two runs within the same second silently overwriting each other's log.
+AUDIT_LOG_FILE="$AUDIT_LOG_DIR/deployment-$TIMESTAMP-$$.json"
 DEPLOYMENT_ID="deploy-$TIMESTAMP"
 
 # Colors for output
@@ -36,6 +37,19 @@ log_error() {
 
 log_warning() {
     echo -e "${YELLOW}[!]${NC} $1"
+}
+
+# Escape a string for embedding inside a JSON string literal. Without this,
+# an environment name containing a `"` or `\` produces invalid JSON in the
+# audit log written by create_audit_log.
+json_escape() {
+    local s=$1
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    printf '%s' "$s"
 }
 
 # Function to validate deployment prerequisites
@@ -218,12 +232,14 @@ create_audit_log() {
     local status=$2
     local hosts_count=$3
     local duration=$4
-    
+    local environment_json
+    environment_json=$(json_escape "$environment")
+
     cat > "$AUDIT_LOG_FILE" << EOF
 {
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "deployment_id": "$DEPLOYMENT_ID",
-  "environment": "$environment",
+  "environment": "$environment_json",
   "status": "$status",
   "duration_seconds": $duration,
   "hosts_deployed": $hosts_count,
