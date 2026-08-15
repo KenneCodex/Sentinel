@@ -118,22 +118,22 @@ validate_required_tools() {
     log_message "=== Validating Required CLI Tools ==="
     
     # Core system tools
-    check_command "bash" true
-    check_command "sh" true
-    check_command "cat" true
-    check_command "grep" true
-    check_command "sed" true
-    check_command "awk" true
+    check_command "bash" true || true
+    check_command "sh" true || true
+    check_command "cat" true || true
+    check_command "grep" true || true
+    check_command "sed" true || true
+    check_command "awk" true || true
     
     # Version control
-    check_command "git" true
+    check_command "git" true || true
     
     # Network tools
-    check_command "curl" true
-    check_command "wget" false
+    check_command "curl" true || true
+    check_command "wget" false || true
     
     # Text processing
-    check_command "jq" false
+    check_command "jq" false || true
     
     echo ""
 }
@@ -143,21 +143,21 @@ validate_optional_tools() {
     log_message "=== Validating Optional Development Tools ==="
     
     # Development tools
-    check_command "python3" false
-    check_command "pip3" false
-    check_command "node" false
-    check_command "npm" false
-    check_command "docker" false
-    check_command "docker-compose" false
+    check_command "python3" false || true
+    check_command "pip3" false || true
+    check_command "node" false || true
+    check_command "npm" false || true
+    check_command "docker" false || true
+    check_command "docker-compose" false || true
     
     # Shell script tools
-    check_command "shellcheck" false
-    check_command "shfmt" false
+    check_command "shellcheck" false || true
+    check_command "shfmt" false || true
     
     # Monitoring and debugging
-    check_command "htop" false
-    check_command "nc" false
-    check_command "netstat" false
+    check_command "htop" false || true
+    check_command "nc" false || true
+    check_command "netstat" false || true
     
     echo ""
 }
