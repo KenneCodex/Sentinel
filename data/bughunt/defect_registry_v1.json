@@ -12,11 +12,28 @@
       "normalized_root_cause": "unguarded nonzero function return",
       "status": "candidate",
       "canonical_pr": 31,
-      "duplicate_prs": [32, 33],
+      "duplicate_prs": [32, 33, 35, 39],
       "observed_base_shas": [
         "e3a0ab3022348590e68350ae0d8a856535a23c9f"
       ],
-      "notes": "PRs 31, 32, and 33 independently proposed the same required-tool guard. PR 31 is the prospective canonical executable lineage because it also carries two additional independently verified fixes."
+      "notes": "PRs 31, 32, 33, 35, and 39 independently proposed fixes for the same required-tool guard (PRs 35 and 39 added after the entry was first seeded). PR 31 is the prospective canonical executable lineage because it also carries two additional independently verified fixes."
+    },
+    {
+      "defect_id": "BUG-A8423ADF0173",
+      "fingerprint": "a8423adf0173cfeac0978d4227d73b240243856874609e9d34079a721b12cb0e",
+      "repository": "KenneCodex/Sentinel",
+      "component": "sentinel_client_update.sh",
+      "failure_class": "premature_exit",
+      "trigger": "HOME/Desktop directory missing under set -euo pipefail",
+      "affected_symbol": "step_4_create_desktop_shortcut",
+      "normalized_root_cause": "unguarded heredoc redirect into a directory that is never created",
+      "status": "candidate",
+      "canonical_pr": 24,
+      "duplicate_prs": [26, 28],
+      "observed_base_shas": [
+        "9ac90f96e0738b1b4da120c9a156b71de250095b"
+      ],
+      "notes": "PRs 24, 26, and 28 independently proposed guarding the Step 4 desktop-shortcut heredoc against a missing ~/Desktop directory (OSTYPE==linux-gnu* matches headless servers/containers, not just desktops, so the directory frequently does not exist). PR 24 is the prospective canonical executable lineage because it also handles a failed mkdir gracefully instead of assuming it always succeeds; PR 28 additionally carries an independently verified .env quote-stripping fix."
     }
   ]
 }
