@@ -52,6 +52,23 @@ def iter_documents(
                 yield path
 
 
+def split_lines(text: str) -> list[str]:
+    """Split text into lines using only the \\n and \\r\\n newline conventions.
+
+    Unlike str.splitlines(), this does not treat other Unicode line-boundary
+    characters (\\v, \\f, \\x1c-\\x1e, \\x85, \\u2028, \\u2029) or a lone \\r as
+    line breaks. Those characters are content, not newlines, and must survive
+    numbering unchanged instead of being silently replaced by the file's
+    detected newline convention.
+    """
+    if text == "":
+        return []
+    parts = text.split("\n")
+    if parts and parts[-1] == "":
+        parts.pop()
+    return [part[:-1] if part.endswith("\r") else part for part in parts]
+
+
 def already_numbered(lines: list[str]) -> bool:
     sample = [line for line in lines[:10] if line.strip()]
     if not sample:
@@ -67,7 +84,7 @@ def already_numbered(lines: list[str]) -> bool:
 
 def numbered_text(text: str, width: int) -> str:
     newline = "\r\n" if "\r\n" in text else "\n"
-    lines = text.splitlines()
+    lines = split_lines(text)
     numbered = [f"L{idx:0{width}d} | {line}" for idx, line in enumerate(lines, start=1)]
     suffix = newline if text.endswith(newline) else ("\n" if text.endswith("\n") else "")
     return newline.join(numbered) + suffix
@@ -75,7 +92,7 @@ def numbered_text(text: str, width: int) -> str:
 
 def write_numbered_copy(path: Path, root: Path, output_root: Path, width: int, force: bool) -> Path | None:
     text = path.read_text(encoding="utf-8")
-    lines = text.splitlines()
+    lines = split_lines(text)
     if already_numbered(lines) and not force:
         return None
 
@@ -88,7 +105,7 @@ def write_numbered_copy(path: Path, root: Path, output_root: Path, width: int, f
 
 def number_in_place(path: Path, width: int, force: bool) -> bool:
     text = path.read_text(encoding="utf-8")
-    lines = text.splitlines()
+    lines = split_lines(text)
     if already_numbered(lines) and not force:
         return False
     path.write_text(numbered_text(text, width), encoding="utf-8")
