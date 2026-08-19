@@ -1,0 +1,36 @@
+{
+  "base_sha": "fee2996365bcf0c271d1abd0136a51f5473b968e",
+  "defect": {
+    "affected_symbol": "_load_json",
+    "component": "tools/archivist_bug_admission.py",
+    "defect_id": "BUG-3CB792A208EE",
+    "evidence": "Reproduced: printf '{not valid json' > /tmp/bad_registry.json; python3 tools/archivist_bug_admission.py --run-id t --repository f/b --base-sha x --registry /tmp/bad_registry.json --output /tmp/out.json raises an uncaught json.decoder.JSONDecodeError, exits 1, and writes no receipt file at all -- even though .github/workflows/sentinel-routines.yml invokes this exact step with if: always() specifically to guarantee a durable receipt is always preserved. Bundled in the same fix: normalize_candidate() checked required-field presence on raw (pre-normalization) values, so whitespace-only fields like '   ' passed the presence check and were then normalized down to empty strings, letting a content-free candidate be admitted.",
+    "failure_class": "unhandled_exception",
+    "fingerprint": "3cb792a208eea7d501dcb8a74fb71879008cfa1f18158326838405e2ef11c64b",
+    "normalized_root_cause": "json.loads called without exception handling, crashing before any receipt is written",
+    "repository": "kennecodex/sentinel",
+    "trigger": "malformed or unreadable json in the registry, open-prs, or candidate input file"
+  },
+  "files_changed": [],
+  "next_action": "Prepare the smallest verified patch and include the Archivist defect markers in the draft pull request.",
+  "notification": {
+    "message": "New reproducible defect BUG-3CB792A208EE admitted for a draft pull request."
+  },
+  "pr_allowed": true,
+  "pr_created": false,
+  "pr_markers": {
+    "defect_id": "Archivist-Defect-ID: BUG-3CB792A208EE",
+    "fingerprint": "Archivist-Fingerprint: 3cb792a208eea7d501dcb8a74fb71879008cfa1f18158326838405e2ef11c64b"
+  },
+  "repository": "KenneCodex/Sentinel",
+  "result": "NEW",
+  "run_id": "RUN-BUGHUNT-20260819-001",
+  "schema_version": "bughunt_receipt_v1",
+  "surface_reviewed": {
+    "files": 34,
+    "reproductions_attempted": 2,
+    "tests": 51
+  },
+  "timestamp": "2026-08-19T15:06:46.076797+00:00",
+  "unique_reproducible_defects": 1
+}

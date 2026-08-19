@@ -24,6 +24,12 @@ from typing import Any, Mapping, Sequence
 
 SCHEMA_VERSION = "bughunt_receipt_v1"
 RESULTS = {"CLEAN", "NEW", "DUPLICATE", "BLOCKED"}
+
+
+class InputLoadError(RuntimeError):
+    """Raised when a required JSON input file exists but cannot be parsed."""
+
+
 REQUIRED_CANDIDATE_FIELDS = (
     "component",
     "failure_class",
@@ -54,18 +60,20 @@ def _normalize_component(value: Any) -> str:
 
 
 def normalize_candidate(repository: str, candidate: Mapping[str, Any]) -> dict[str, str]:
-    missing = [field for field in REQUIRED_CANDIDATE_FIELDS if not candidate.get(field)]
+    normalized = {
+        "repository": _normalize_text(repository),
+        "component": _normalize_component(candidate.get("component")),
+        "failure_class": _normalize_text(candidate.get("failure_class")),
+        "trigger": _normalize_text(candidate.get("trigger")),
+        "affected_symbol": _normalize_text(candidate.get("affected_symbol")),
+        "normalized_root_cause": _normalize_text(candidate.get("normalized_root_cause")),
+    }
+
+    missing = [field for field in REQUIRED_CANDIDATE_FIELDS if not normalized[field]]
     if missing:
         raise ValueError(f"candidate is missing required fields: {', '.join(missing)}")
 
-    return {
-        "repository": _normalize_text(repository),
-        "component": _normalize_component(candidate["component"]),
-        "failure_class": _normalize_text(candidate["failure_class"]),
-        "trigger": _normalize_text(candidate["trigger"]),
-        "affected_symbol": _normalize_text(candidate["affected_symbol"]),
-        "normalized_root_cause": _normalize_text(candidate["normalized_root_cause"]),
-    }
+    return normalized
 
 
 def fingerprint_candidate(repository: str, candidate: Mapping[str, Any]) -> tuple[str, str, dict[str, str]]:
@@ -81,7 +89,10 @@ def _load_json(path: str | Path | None, default: Any) -> Any:
     target = Path(path)
     if not target.exists():
         return default
-    return json.loads(target.read_text(encoding="utf-8"))
+    try:
+        return json.loads(target.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
+        raise InputLoadError(f"failed to parse JSON from {target}: {exc}") from exc
 
 
 def _registry_entries(payload: Any) -> list[dict[str, Any]]:
@@ -295,14 +306,30 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = _parse_args()
-    candidate = _load_json(args.candidate, None)
-    registry = _registry_entries(_load_json(args.registry, {"entries": []}))
-    open_prs = _open_pr_entries(_load_json(args.open_prs, []))
     surface = SurfaceReviewed(
         files=args.files_reviewed,
         tests=args.tests_executed,
         reproductions_attempted=args.reproductions_attempted,
     )
+
+    try:
+        candidate = _load_json(args.candidate, None)
+        registry = _registry_entries(_load_json(args.registry, {"entries": []}))
+        open_prs = _open_pr_entries(_load_json(args.open_prs, []))
+    except (InputLoadError, ValueError) as exc:
+        receipt = build_receipt(
+            run_id=args.run_id,
+            repository=args.repository,
+            base_sha=args.base_sha,
+            blocked_reason=f"Required input could not be loaded: {exc}",
+            surface=surface,
+        )
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        print(json.dumps(receipt, indent=2, sort_keys=True))
+        return 1
+
     receipt = build_receipt(
         run_id=args.run_id,
         repository=args.repository,

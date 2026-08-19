@@ -1,7 +1,13 @@
+import json
+
+import pytest
+
 from tools.archivist_bug_admission import (
+    InputLoadError,
     SurfaceReviewed,
     build_receipt,
     fingerprint_candidate,
+    normalize_candidate,
 )
 
 REPOSITORY = "KenneCodex/Sentinel"
@@ -142,6 +148,60 @@ def test_no_candidate_produces_durable_clean_receipt():
         "tests": 40,
         "reproductions_attempted": 3,
     }
+
+
+def test_malformed_registry_json_raises_input_load_error_instead_of_crashing(tmp_path):
+    from tools.archivist_bug_admission import _load_json
+
+    bad_registry = tmp_path / "registry.json"
+    bad_registry.write_text("{not valid json", encoding="utf-8")
+
+    with pytest.raises(InputLoadError):
+        _load_json(bad_registry, {"entries": []})
+
+
+def test_main_writes_blocked_receipt_when_registry_is_malformed(tmp_path, monkeypatch):
+    from tools.archivist_bug_admission import main
+
+    bad_registry = tmp_path / "registry.json"
+    bad_registry.write_text("{not valid json", encoding="utf-8")
+    output = tmp_path / "receipt.json"
+
+    argv = [
+        "archivist_bug_admission.py",
+        "--run-id",
+        "run-malformed",
+        "--repository",
+        REPOSITORY,
+        "--base-sha",
+        BASE_SHA,
+        "--registry",
+        str(bad_registry),
+        "--output",
+        str(output),
+    ]
+    monkeypatch.setattr("sys.argv", argv)
+
+    exit_code = main()
+
+    assert exit_code != 0
+    assert output.exists()
+    receipt = json.loads(output.read_text(encoding="utf-8"))
+    assert receipt["result"] == "BLOCKED"
+    assert receipt["pr_allowed"] is False
+
+
+def test_whitespace_only_candidate_fields_are_rejected_as_missing():
+    whitespace_candidate = {
+        "component": "   ",
+        "failure_class": "   ",
+        "trigger": "   ",
+        "affected_symbol": "   ",
+        "normalized_root_cause": "   ",
+    }
+
+    with pytest.raises(ValueError):
+        normalize_candidate(REPOSITORY, whitespace_candidate)
 
 
 def test_blocked_reason_takes_precedence_over_candidate():
