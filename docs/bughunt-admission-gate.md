@@ -20,6 +20,18 @@ Every semantic bug-finder run emits exactly one durable result:
 `CLEAN` means **no defect identified during the recorded bounded run**. It is not
 a proof that the repository contains no defects.
 
+## Unreadable evidence blocks; it never reads as absence
+
+`--open-prs` is the gate's only view of open lineage. When it is supplied but
+the file is missing, is not valid JSON, or is not a list of pull-request objects
+(optionally wrapped under `pull_requests`, `items`, or `results`), the gate emits
+`BLOCKED` rather than proceeding.
+
+Treating an unreadable export as "no pull requests are open" would turn a
+`DUPLICATE` into a `NEW` and authorise the competing pull request the gate exists
+to suppress. Omitting `--open-prs` entirely is still a valid bounded run — the
+receipt then simply records that no open-PR evidence was consulted.
+
 ## Stable defect identity
 
 `tools/archivist_bug_admission.py` computes a SHA-256 fingerprint over these

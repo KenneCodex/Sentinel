@@ -24,6 +24,8 @@ from typing import Any, Mapping, Sequence
 
 SCHEMA_VERSION = "bughunt_receipt_v1"
 RESULTS = {"CLEAN", "NEW", "DUPLICATE", "BLOCKED"}
+OPEN_PR_LIST_KEYS = ("pull_requests", "items", "results")
+_MISSING = object()
 REQUIRED_CANDIDATE_FIELDS = (
     "component",
     "failure_class",
@@ -95,14 +97,29 @@ def _registry_entries(payload: Any) -> list[dict[str, Any]]:
 
 
 def _open_pr_entries(payload: Any) -> list[dict[str, Any]]:
+    """Interpret an open pull-request export, refusing anything ambiguous.
+
+    Duplicate suppression is the only reason the gate reads this file, so an
+    export it cannot interpret must not degrade to "no pull requests are open".
+    That reading turns a DUPLICATE into a NEW and authorises the very competing
+    pull request the gate exists to prevent, which is the unsafe direction.
+    """
     if isinstance(payload, dict):
-        for key in ("pull_requests", "items", "results"):
+        for key in OPEN_PR_LIST_KEYS:
             if isinstance(payload.get(key), list):
                 payload = payload[key]
                 break
+        else:
+            raise ValueError(
+                "open pull-request payload is an object with no recognised list key "
+                f"({', '.join(OPEN_PR_LIST_KEYS)})"
+            )
     if not isinstance(payload, list):
-        return []
-    return [entry for entry in payload if isinstance(entry, dict)]
+        raise ValueError("open pull-request payload must be a list, or an object wrapping one")
+    for entry in payload:
+        if not isinstance(entry, dict):
+            raise ValueError("every open pull-request entry must be an object")
+    return list(payload)
 
 
 def _marker_matches(pr: Mapping[str, Any], defect_id: str, fingerprint: str) -> bool:
@@ -297,7 +314,23 @@ def main() -> int:
     args = _parse_args()
     candidate = _load_json(args.candidate, None)
     registry = _registry_entries(_load_json(args.registry, {"entries": []}))
-    open_prs = _open_pr_entries(_load_json(args.open_prs, []))
+
+    # Evidence the caller supplied but the gate cannot read is a blocked run,
+    # not a run that observed zero open pull requests.
+    open_prs: list[dict[str, Any]] = []
+    blocked_reason = args.blocked_reason
+    if not blocked_reason and args.open_prs:
+        try:
+            payload = _load_json(args.open_prs, _MISSING)
+            if payload is _MISSING:
+                raise ValueError(f"file not found: {args.open_prs}")
+            open_prs = _open_pr_entries(payload)
+        except ValueError as exc:
+            blocked_reason = (
+                f"Open pull-request evidence was supplied but could not be read ({exc}); "
+                "duplicate suppression cannot be verified."
+            )
+
     surface = SurfaceReviewed(
         files=args.files_reviewed,
         tests=args.tests_executed,
@@ -310,7 +343,7 @@ def main() -> int:
         candidate=candidate,
         registry=registry,
         open_prs=open_prs,
-        blocked_reason=args.blocked_reason,
+        blocked_reason=blocked_reason,
         surface=surface,
     )
     output = Path(args.output)

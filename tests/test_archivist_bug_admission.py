@@ -1,5 +1,12 @@
+import json
+import sys
+from unittest.mock import patch
+
+import pytest
+
 from tools.archivist_bug_admission import (
     SurfaceReviewed,
+    _open_pr_entries,
     build_receipt,
     fingerprint_candidate,
 )
@@ -142,6 +149,120 @@ def test_no_candidate_produces_durable_clean_receipt():
         "tests": 40,
         "reproductions_attempted": 3,
     }
+
+
+def test_recognised_open_pr_wrappers_are_unwrapped():
+    entry = {"number": 44, "title": "fix: candidate"}
+    assert _open_pr_entries([entry]) == [entry]
+    for key in ("pull_requests", "items", "results"):
+        assert _open_pr_entries({key: [entry]}) == [entry]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"open_pull_requests": [{"number": 44}]},
+        {"data": {"repository": {"pullRequests": {"nodes": []}}}},
+        {},
+        "not-json-data",
+        42,
+        [{"number": 44}, "not-an-object"],
+    ],
+)
+def test_unreadable_open_pr_payload_is_rejected_rather_than_read_as_empty(payload):
+    with pytest.raises(ValueError):
+        _open_pr_entries(payload)
+
+
+def test_unusable_open_pr_evidence_blocks_instead_of_admitting_new(tmp_path, capsys):
+    from tools.archivist_bug_admission import main
+
+    defect_id, fingerprint, _ = fingerprint_candidate(REPOSITORY, CANDIDATE)
+    candidate_path = tmp_path / "candidate.json"
+    candidate_path.write_text(json.dumps(CANDIDATE), encoding="utf-8")
+
+    # The defect IS represented by an open PR, but exported under a key the gate
+    # does not recognise. Reading that as "no open PRs" would admit a duplicate.
+    open_prs_path = tmp_path / "open-prs.json"
+    open_prs_path.write_text(
+        json.dumps(
+            {
+                "open_pull_requests": [
+                    {
+                        "number": 44,
+                        "body": f"Archivist-Defect-ID: {defect_id}\n"
+                        f"Archivist-Fingerprint: {fingerprint}",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    output_path = tmp_path / "receipt.json"
+    argv = [
+        "--run-id", "run-unreadable-prs",
+        "--repository", REPOSITORY,
+        "--base-sha", BASE_SHA,
+        "--candidate", str(candidate_path),
+        "--registry", str(tmp_path / "absent-registry.json"),
+        "--open-prs", str(open_prs_path),
+        "--output", str(output_path),
+    ]
+    with patch.object(sys, "argv", ["archivist_bug_admission.py", *argv]):
+        assert main() == 0
+    capsys.readouterr()
+
+    receipt = json.loads(output_path.read_text(encoding="utf-8"))
+    assert receipt["result"] == "BLOCKED"
+    assert receipt["pr_allowed"] is False
+
+
+def test_missing_open_pr_file_blocks_when_explicitly_requested(tmp_path, capsys):
+    from tools.archivist_bug_admission import main
+
+    candidate_path = tmp_path / "candidate.json"
+    candidate_path.write_text(json.dumps(CANDIDATE), encoding="utf-8")
+    output_path = tmp_path / "receipt.json"
+    argv = [
+        "--run-id", "run-absent-prs",
+        "--repository", REPOSITORY,
+        "--base-sha", BASE_SHA,
+        "--candidate", str(candidate_path),
+        "--registry", str(tmp_path / "absent-registry.json"),
+        "--open-prs", str(tmp_path / "never-written.json"),
+        "--output", str(output_path),
+    ]
+    with patch.object(sys, "argv", ["archivist_bug_admission.py", *argv]):
+        assert main() == 0
+    capsys.readouterr()
+
+    receipt = json.loads(output_path.read_text(encoding="utf-8"))
+    assert receipt["result"] == "BLOCKED"
+    assert receipt["pr_allowed"] is False
+
+
+def test_omitted_open_pr_file_still_allows_a_new_admission(tmp_path, capsys):
+    from tools.archivist_bug_admission import main
+
+    candidate_path = tmp_path / "candidate.json"
+    candidate_path.write_text(json.dumps(CANDIDATE), encoding="utf-8")
+    output_path = tmp_path / "receipt.json"
+    argv = [
+        "--run-id", "run-no-pr-evidence",
+        "--repository", REPOSITORY,
+        "--base-sha", BASE_SHA,
+        "--candidate", str(candidate_path),
+        "--registry", str(tmp_path / "absent-registry.json"),
+        "--output", str(output_path),
+    ]
+    with patch.object(sys, "argv", ["archivist_bug_admission.py", *argv]):
+        assert main() == 0
+    capsys.readouterr()
+
+    receipt = json.loads(output_path.read_text(encoding="utf-8"))
+    assert receipt["result"] == "NEW"
+    assert receipt["pr_allowed"] is True
 
 
 def test_blocked_reason_takes_precedence_over_candidate():
