@@ -20,17 +20,32 @@ Every semantic bug-finder run emits exactly one durable result:
 `CLEAN` means **no defect identified during the recorded bounded run**. It is not
 a proof that the repository contains no defects.
 
-## Unreadable evidence blocks; it never reads as absence
+## Candidate-mode evidence is fail-closed
 
-`--open-prs` is the gate's only view of open lineage. When it is supplied but
-the file is missing, is not valid JSON, or is not a list of pull-request objects
-(optionally wrapped under `pull_requests`, `items`, or `results`), the gate emits
-`BLOCKED` rather than proceeding.
+Candidate mode is an admission decision, so the gate must be able to verify both
+known-defect lineage and currently open pull-request lineage before it can emit
+`NEW`. A candidate run therefore requires all of the following:
 
-Treating an unreadable export as "no pull requests are open" would turn a
-`DUPLICATE` into a `NEW` and authorise the competing pull request the gate exists
-to suppress. Omitting `--open-prs` entirely is still a valid bounded run — the
-receipt then simply records that no open-PR evidence was consulted.
+- a present, parseable candidate JSON object whose five identity fields remain
+  non-empty after normalization;
+- a present, parseable defect registry whose entries are objects; and
+- a present, parseable `--open-prs` export containing pull-request objects,
+  either as a bare list or wrapped under `pull_requests`, `items`, or `results`.
+
+If any supplied or required evidence is missing, malformed, unreadable, or has an
+ambiguous shape, the gate emits a durable `BLOCKED` receipt with
+`pr_allowed: false`. Evidence failure never reads as absence.
+
+This distinction closes several unsafe equivalences: a missing candidate must
+not become `CLEAN`; a missing registry must not become an empty registry; and a
+missing or malformed open-PR export must not become "zero open pull requests."
+Any of those readings could turn an already represented defect into `NEW` and
+authorise a competing pull request.
+
+`--open-prs` is not required for deterministic `CLEAN` runs because those runs do
+not make a candidate admission decision. An explicit `--blocked-reason` also
+takes precedence so the caller can always preserve the blocker receipt even if
+other optional inputs are unavailable.
 
 ## Stable defect identity
 
@@ -69,12 +84,13 @@ on title similarity or agent prose.
 3. Reproduce the candidate defect.
 4. Write a candidate JSON document with the five identity fields and bounded
    evidence.
-5. Export open PR metadata to JSON when available.
-6. Run the admission gate.
-7. Preserve the generated receipt.
-8. Open a draft PR only when `result` is `NEW` and `pr_allowed` is `true`.
-9. Send the receipt's notification message to the configured phone, email, or
-   webhook channel.
+5. Verify the defect registry is present and parseable.
+6. Export current open PR metadata to JSON.
+7. Run the admission gate with the candidate, registry, and open-PR evidence.
+8. Preserve the generated receipt.
+9. Open a draft PR only when `result` is `NEW` and `pr_allowed` is `true`.
+10. Send the receipt's notification message to the configured phone, email, or
+    webhook channel.
 
 ## CLI examples
 
@@ -97,7 +113,8 @@ python3 tools/archivist_bug_admission.py \
 ### Clean run
 
 Omit `--candidate` only after the bounded review and its validation work have
-completed:
+completed. Candidate-lineage evidence is not required because this mode cannot
+authorise a pull request:
 
 ```bash
 python3 tools/archivist_bug_admission.py \
@@ -140,7 +157,8 @@ deterministic validation sweep.
 This workflow integration does not replace the semantic external bug-finder.
 The deterministic job cannot identify behavioral defects that its checks do not
 exercise. An external agent that reproduces a candidate must still call the
-gate in candidate mode, include open-PR metadata, and obey `pr_allowed`.
+gate in candidate mode, include the candidate, registry, and current open-PR
+metadata, and obey `pr_allowed`.
 
 ## Current seeded lineage
 
