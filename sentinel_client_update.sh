@@ -29,6 +29,14 @@ safe_load_dotenv() {
         if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
             local key="${BASH_REMATCH[1]}"
             local value="${BASH_REMATCH[2]}"
+
+            # A variable already present in the environment was chosen by the
+            # caller for this run; the checked-in .env is only a default.
+            # Without this, `SENTINEL_PORT=9000 ./sentinel_client_update.sh`
+            # is silently overridden and the health sweep probes the wrong port.
+            if [[ -n "${!key+set}" ]]; then
+                continue
+            fi
             export "$key=$value"
         else
             echo "Warning: Skipping invalid line in $dotenv_file: $line" >&2
