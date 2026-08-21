@@ -35,6 +35,10 @@ REQUIRED_CANDIDATE_FIELDS = (
 )
 
 
+class InputLoadError(RuntimeError):
+    """Raised when required JSON evidence is missing or cannot be parsed."""
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -56,18 +60,21 @@ def _normalize_component(value: Any) -> str:
 
 
 def normalize_candidate(repository: str, candidate: Mapping[str, Any]) -> dict[str, str]:
-    missing = [field for field in REQUIRED_CANDIDATE_FIELDS if not candidate.get(field)]
+    if not isinstance(candidate, Mapping):
+        raise ValueError("candidate payload must be an object")
+
+    normalized = {
+        "repository": _normalize_text(repository),
+        "component": _normalize_component(candidate.get("component")),
+        "failure_class": _normalize_text(candidate.get("failure_class")),
+        "trigger": _normalize_text(candidate.get("trigger")),
+        "affected_symbol": _normalize_text(candidate.get("affected_symbol")),
+        "normalized_root_cause": _normalize_text(candidate.get("normalized_root_cause")),
+    }
+    missing = [field for field in REQUIRED_CANDIDATE_FIELDS if not normalized[field]]
     if missing:
         raise ValueError(f"candidate is missing required fields: {', '.join(missing)}")
-
-    return {
-        "repository": _normalize_text(repository),
-        "component": _normalize_component(candidate["component"]),
-        "failure_class": _normalize_text(candidate["failure_class"]),
-        "trigger": _normalize_text(candidate["trigger"]),
-        "affected_symbol": _normalize_text(candidate["affected_symbol"]),
-        "normalized_root_cause": _normalize_text(candidate["normalized_root_cause"]),
-    }
+    return normalized
 
 
 def fingerprint_candidate(repository: str, candidate: Mapping[str, Any]) -> tuple[str, str, dict[str, str]]:
@@ -83,7 +90,10 @@ def _load_json(path: str | Path | None, default: Any) -> Any:
     target = Path(path)
     if not target.exists():
         return default
-    return json.loads(target.read_text(encoding="utf-8"))
+    try:
+        return json.loads(target.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError) as exc:
+        raise InputLoadError(f"failed to parse JSON from {target}: {exc}") from exc
 
 
 def _registry_entries(payload: Any) -> list[dict[str, Any]]:
@@ -93,7 +103,10 @@ def _registry_entries(payload: Any) -> list[dict[str, Any]]:
         entries = payload
     if not isinstance(entries, list):
         raise ValueError("registry entries must be a list")
-    return [entry for entry in entries if isinstance(entry, dict)]
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError("every registry entry must be an object")
+    return list(entries)
 
 
 def _open_pr_entries(payload: Any) -> list[dict[str, Any]]:
@@ -301,7 +314,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--base-sha", required=True)
     parser.add_argument("--candidate", help="Path to candidate JSON. Omit for a CLEAN receipt.")
     parser.add_argument("--registry", default="data/bughunt/defect_registry_v1.json")
-    parser.add_argument("--open-prs", help="Optional JSON file containing open pull-request metadata.")
+    parser.add_argument("--open-prs", help="Optional for CLEAN/BLOCKED runs; required in candidate mode.")
     parser.add_argument("--blocked-reason")
     parser.add_argument("--files-reviewed", type=int, default=0)
     parser.add_argument("--tests-executed", type=int, default=0)
@@ -310,32 +323,79 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _write_receipt(output_path: str | Path, receipt: Mapping[str, Any]) -> None:
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(json.dumps(receipt, indent=2, sort_keys=True))
+
+
 def main() -> int:
     args = _parse_args()
-    candidate = _load_json(args.candidate, None)
-    registry = _registry_entries(_load_json(args.registry, {"entries": []}))
-
-    # Evidence the caller supplied but the gate cannot read is a blocked run,
-    # not a run that observed zero open pull requests.
-    open_prs: list[dict[str, Any]] = []
-    blocked_reason = args.blocked_reason
-    if not blocked_reason and args.open_prs:
-        try:
-            payload = _load_json(args.open_prs, _MISSING)
-            if payload is _MISSING:
-                raise ValueError(f"file not found: {args.open_prs}")
-            open_prs = _open_pr_entries(payload)
-        except ValueError as exc:
-            blocked_reason = (
-                f"Open pull-request evidence was supplied but could not be read ({exc}); "
-                "duplicate suppression cannot be verified."
-            )
-
     surface = SurfaceReviewed(
         files=args.files_reviewed,
         tests=args.tests_executed,
         reproductions_attempted=args.reproductions_attempted,
     )
+
+    # An explicitly blocked run should still produce its receipt even if other
+    # optional evidence paths are malformed or unavailable.
+    if args.blocked_reason:
+        receipt = build_receipt(
+            run_id=args.run_id,
+            repository=args.repository,
+            base_sha=args.base_sha,
+            blocked_reason=args.blocked_reason,
+            surface=surface,
+        )
+        _write_receipt(args.output, receipt)
+        return 0
+
+    candidate: Mapping[str, Any] | None = None
+    registry: list[dict[str, Any]] = []
+    open_prs: list[dict[str, Any]] = []
+
+    try:
+        if args.candidate:
+            candidate_payload = _load_json(args.candidate, _MISSING)
+            if candidate_payload is _MISSING:
+                raise InputLoadError(f"candidate file not found: {args.candidate}")
+            if not isinstance(candidate_payload, Mapping):
+                raise ValueError("candidate payload must be an object")
+            # Validate before any NEW decision can be made. This also catches
+            # whitespace-only required fields after normalization.
+            normalize_candidate(args.repository, candidate_payload)
+            candidate = candidate_payload
+
+            registry_payload = _load_json(args.registry, _MISSING)
+            if registry_payload is _MISSING:
+                raise InputLoadError(f"registry file not found: {args.registry}")
+            registry = _registry_entries(registry_payload)
+
+            # Candidate mode is an admission decision. The documented pre-PR
+            # contract requires current open-PR evidence; omission cannot mean
+            # "zero open pull requests" because that is the unsafe direction.
+            if not args.open_prs:
+                raise InputLoadError("candidate mode requires --open-prs evidence")
+            open_pr_payload = _load_json(args.open_prs, _MISSING)
+            if open_pr_payload is _MISSING:
+                raise InputLoadError(f"open pull-request file not found: {args.open_prs}")
+            open_prs = _open_pr_entries(open_pr_payload)
+        else:
+            # A deterministic CLEAN run has no candidate admission decision to
+            # make, so registry/open-PR lineage evidence is not required.
+            candidate = None
+    except (InputLoadError, ValueError) as exc:
+        receipt = build_receipt(
+            run_id=args.run_id,
+            repository=args.repository,
+            base_sha=args.base_sha,
+            blocked_reason=f"Required admission evidence could not be verified: {exc}",
+            surface=surface,
+        )
+        _write_receipt(args.output, receipt)
+        return 0
+
     receipt = build_receipt(
         run_id=args.run_id,
         repository=args.repository,
@@ -343,13 +403,9 @@ def main() -> int:
         candidate=candidate,
         registry=registry,
         open_prs=open_prs,
-        blocked_reason=blocked_reason,
         surface=surface,
     )
-    output = Path(args.output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(json.dumps(receipt, indent=2, sort_keys=True))
+    _write_receipt(args.output, receipt)
     return 0
 
 
