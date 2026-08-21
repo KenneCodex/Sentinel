@@ -9,6 +9,7 @@ on:
     paths:
       - '.github/workflows/sentinel-routines.yml'
       - 'docs/automation-routines.md'
+      - 'docs/bughunt-admission-gate.md'
       - 'README.md'
       - '**.sh'
       - '**.py'
@@ -19,6 +20,7 @@ on:
     paths:
       - '.github/workflows/sentinel-routines.yml'
       - 'docs/automation-routines.md'
+      - 'docs/bughunt-admission-gate.md'
       - 'README.md'
       - '**.sh'
       - '**.py'
@@ -204,6 +206,11 @@ jobs:
     needs: preflight
     if: ${{ always() && (github.event_name != 'workflow_dispatch' || github.event.inputs.routine == 'all' || github.event.inputs.routine == 'bughunt') }}
     runs-on: ubuntu-latest
+    outputs:
+      archivist_result: ${{ steps.archivist.outputs.result }}
+      archivist_message: ${{ steps.archivist.outputs.message }}
+      archivist_run_id: ${{ steps.archivist.outputs.run_id }}
+      receipt_path: ${{ steps.archivist.outputs.receipt_path }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -217,6 +224,7 @@ jobs:
         run: python3 -m pip install --disable-pip-version-check --quiet -r requirements-dev.txt
 
       - name: Run deterministic validation sweep
+        id: validation
         shell: bash
         run: |
           set -euo pipefail
@@ -243,8 +251,72 @@ jobs:
             echo "- Python files byte-compiled: \`${python_count}\`"
             echo "- Python tests executed: \`${test_count}\`"
             echo '- Whitespace errors: `none`'
-            echo '- Result: `pass`'
+            echo '- Deterministic validation: `pass`'
           } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "shell_count=${shell_count}" >> "$GITHUB_OUTPUT"
+          echo "python_count=${python_count}" >> "$GITHUB_OUTPUT"
+          echo "test_count=${test_count}" >> "$GITHUB_OUTPUT"
+
+      - name: Emit Archivist run receipt
+        id: archivist
+        if: ${{ always() }}
+        shell: bash
+        env:
+          VALIDATION_OUTCOME: ${{ steps.validation.outcome }}
+          SHELL_COUNT: ${{ steps.validation.outputs.shell_count }}
+          PYTHON_COUNT: ${{ steps.validation.outputs.python_count }}
+          TEST_COUNT: ${{ steps.validation.outputs.test_count }}
+        run: |
+          set -euo pipefail
+          run_id="RUN-BUGHUNT-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          receipt_path=".audit-logs/bughunt/${run_id}.json"
+          tested_sha=$(git rev-parse HEAD 2>/dev/null || printf 'unknown')
+          files_reviewed=$(( ${SHELL_COUNT:-0} + ${PYTHON_COUNT:-0} ))
+          tests_executed=${TEST_COUNT:-0}
+
+          args=(
+            --run-id "$run_id"
+            --repository "$GITHUB_REPOSITORY"
+            --base-sha "$tested_sha"
+            --files-reviewed "$files_reviewed"
+            --tests-executed "$tests_executed"
+            --reproductions-attempted 0
+            --output "$receipt_path"
+          )
+
+          if [[ "$VALIDATION_OUTCOME" != "success" ]]; then
+            args+=(--blocked-reason "Deterministic validation did not complete successfully.")
+          fi
+
+          python3 tools/archivist_bug_admission.py "${args[@]}"
+
+          result=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["result"])' "$receipt_path")
+          message=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["notification"]["message"])' "$receipt_path")
+
+          echo "result=$result" >> "$GITHUB_OUTPUT"
+          echo "message=$message" >> "$GITHUB_OUTPUT"
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "receipt_path=$receipt_path" >> "$GITHUB_OUTPUT"
+
+          {
+            echo
+            echo '### Archivist receipt'
+            echo
+            echo "- Result: \`${result}\`"
+            echo "- Run ID: \`${run_id}\`"
+            echo "- Receipt: \`${receipt_path}\`"
+            echo "- Notification: ${message}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Archivist receipt
+        if: ${{ always() && steps.archivist.outputs.receipt_path != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.archivist.outputs.run_id }}
+          path: ${{ steps.archivist.outputs.receipt_path }}
+          if-no-files-found: error
+          retention-days: 90
 
   notify:
     name: Publish routine notification
@@ -261,19 +333,31 @@ jobs:
       ISSUE_COUNT: ${{ needs.preflight.outputs.issue_count }}
       HEALTH_RESULT: ${{ needs.system_health.result }}
       TRIAGE_RESULT: ${{ needs.issue_triage.result }}
-      BUGHUNT_RESULT: ${{ needs.bughunt.result }}
+      BUGHUNT_JOB_RESULT: ${{ needs.bughunt.result }}
+      BUGHUNT_ARCHIVIST_RESULT: ${{ needs.bughunt.outputs.archivist_result }}
+      BUGHUNT_ARCHIVIST_MESSAGE: ${{ needs.bughunt.outputs.archivist_message }}
+      BUGHUNT_ARCHIVIST_RUN_ID: ${{ needs.bughunt.outputs.archivist_run_id }}
     steps:
       - name: Build and publish notification
         shell: bash
         run: |
           set -euo pipefail
+
+          if [[ "$BUGHUNT_JOB_RESULT" == "skipped" ]]; then
+            bughunt_line='Bughunt: not selected for this run'
+          elif [[ -n "$BUGHUNT_ARCHIVIST_RESULT" ]]; then
+            bughunt_line="Bughunt: ${BUGHUNT_ARCHIVIST_RESULT}; ${BUGHUNT_ARCHIVIST_MESSAGE}; receipt ${BUGHUNT_ARCHIVIST_RUN_ID}"
+          else
+            bughunt_line="Bughunt: BLOCKED; job result ${BUGHUNT_JOB_RESULT}; no Archivist receipt was produced"
+          fi
+
           message=$(printf '%s\n%s\n%s\n%s\n%s\n%s' \
             'Sentinel scheduled routines' \
             "Repository: ${GITHUB_REPOSITORY}" \
             "Source: ${SOURCE_STATE}; open issues: ${ISSUE_COUNT}" \
             "System health: ${HEALTH_RESULT}" \
             "Issue triage: ${TRIAGE_RESULT}" \
-            "Bughunt: ${BUGHUNT_RESULT}")
+            "$bughunt_line")
 
           {
             echo '## Routine notification'
