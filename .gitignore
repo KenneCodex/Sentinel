@@ -2,7 +2,7 @@
 deployment-config.json
 
 # Audit logs (except README and config templates)
-.audit-logs/*.json
+.audit-logs/**/*.json
 !.audit-logs/priority-config.json
 
 # Temporary files
