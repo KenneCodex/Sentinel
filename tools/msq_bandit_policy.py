@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import random
 from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
@@ -247,6 +248,25 @@ def _reconcile_arms(loaded: List[ArmState]) -> List[ArmState]:
     return [by_id.get(spec["arm_id"], ArmState(spec["arm_id"])) for spec in DEFAULT_ARMS]
 
 
+def _is_valid_beta_param(value: Any) -> bool:
+    """Whether a persisted Beta-distribution parameter is usable.
+
+    ``random.betavariate``/``gammavariate`` require a finite value > 0; a
+    non-finite value (e.g. JSON's non-standard ``NaN``, which ``json.loads``
+    accepts by default) makes ``gammavariate`` spin forever instead of
+    raising, and a non-positive value raises ``ValueError``. Neither is
+    reachable through normal play (``ArmState`` starts both at 1.0 and
+    ``update_arm`` only ever adds 1.0), so this only guards a corrupted or
+    tampered persisted state file.
+    """
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value > 0
+    )
+
+
 def load_or_init_player_state(path: Path, player_id: str) -> PlayerPolicyState:
     obj = _load_json(path)
     if not obj:
@@ -273,9 +293,12 @@ def load_or_init_player_state(path: Path, player_id: str) -> PlayerPolicyState:
         if not isinstance(a, dict):
             return init_player(player_id)
         try:
-            arms.append(ArmState(**a))
+            arm = ArmState(**a)
         except (TypeError, KeyError):
             return init_player(player_id)
+        if not _is_valid_beta_param(arm.alpha) or not _is_valid_beta_param(arm.beta):
+            return init_player(player_id)
+        arms.append(arm)
 
     # Use the function argument player_id, which we've validated against disk.
     return PlayerPolicyState(
