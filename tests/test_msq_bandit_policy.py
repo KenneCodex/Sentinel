@@ -241,3 +241,38 @@ def test_unknown_persisted_arm_is_dropped(tmp_path):
 
     state = load_or_init_player_state(path, "P1")
     assert "Z_RETIRED_ARM" not in {a.arm_id for a in state.arms}
+
+
+# --- persisted alpha/beta validation -----------------------------------------
+#
+# choose_arm feeds arm.alpha/arm.beta straight into random.betavariate, which
+# calls gammavariate under the hood. gammavariate raises on a non-positive
+# parameter and, worse, spins forever on a non-finite one (json.loads accepts
+# the non-standard "NaN"/"Infinity" literals by default, so this is reachable
+# from a corrupted or tampered persisted state file, not just crafted Python).
+
+
+@pytest.mark.parametrize(
+    "bad_value",
+    [0, -1.0, float("nan"), float("inf"), float("-inf"), "1.0", None, True],
+)
+def test_persisted_non_positive_or_non_finite_beta_param_is_rejected(tmp_path, bad_value):
+    from tools.msq_bandit_policy import load_or_init_player_state
+
+    arms = [{"arm_id": arm["arm_id"], "alpha": 1.0, "beta": 1.0} for arm in DEFAULT_ARMS]
+    arms[0]["alpha"] = bad_value
+
+    path = tmp_path / "player.json"
+    path.write_text(
+        json.dumps({"player_id": "P1", "runs_seen": 5, "arms": arms}),
+        encoding="utf-8",
+    )
+
+    state = load_or_init_player_state(path, "P1")
+
+    # Falls back to a fresh player rather than admitting an unusable arm, and
+    # choose_arm past warmup must not raise or hang on the result.
+    assert state.runs_seen == 0
+    assert choose_arm(state, seed=1, guardrails=NO_WARMUP) in {
+        a["arm_id"] for a in DEFAULT_ARMS
+    }
