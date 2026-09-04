@@ -1,0 +1,7 @@
+{
+  "question_id": 12345,
+  "question_text": "Example binary forecasting question",
+  "candidate_probability_yes": 0.42,
+  "status": "candidate_only_not_submitted",
+  "human_review_required_before_write": true
+}
