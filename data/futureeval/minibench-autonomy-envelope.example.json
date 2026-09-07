@@ -1,0 +1,20 @@
+{
+  "schema": "sentinel.metaculus.autonomy-envelope/0.1",
+  "competition_slug": "minibench",
+  "tournament_ref": "minibench",
+  "authority_id": "REPLACE_BEFORE_ACTIVATION",
+  "valid_from_utc": "2026-09-07T00:00:00Z",
+  "expires_utc": "2026-09-25T23:59:59Z",
+  "max_forecasts": 60,
+  "require_reasoning_comment": true,
+  "human_in_loop_during_forecasting": false,
+  "allow_live_tuning": false,
+  "allow_forecast_preview_to_human": false,
+  "allowed_write_methods": [
+    "forecast",
+    "comment"
+  ],
+  "allowed_network_hosts": [
+    "www.metaculus.com"
+  ]
+}
