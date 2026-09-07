@@ -1,0 +1,9 @@
+{
+  "status": "EXAMPLE_ONLY_NOT_AN_ACTIVE_FORECAST",
+  "forecast_ordinal": 1,
+  "question_id": 12345,
+  "post_id": 54321,
+  "probability_yes": 0.42,
+  "reasoning_text": "Example reasoning only. This fixture is not bound to an active MiniBench question and must not be submitted.",
+  "expected_dry_run_state": "DRY_RUN_NO_WRITE"
+}
