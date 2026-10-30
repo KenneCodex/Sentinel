@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import random
 from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
@@ -263,7 +264,7 @@ def load_or_init_player_state(path: Path, player_id: str) -> PlayerPolicyState:
     # If the persisted player_id doesn't match, or types are wrong, start fresh.
     if not isinstance(loaded_player_id, str) or loaded_player_id != player_id:
         return init_player(player_id)
-    if not isinstance(runs_seen, int):
+    if not isinstance(runs_seen, int) or isinstance(runs_seen, bool) or runs_seen < 0:
         return init_player(player_id)
     if not isinstance(arms_raw, list):
         return init_player(player_id)
@@ -273,9 +274,20 @@ def load_or_init_player_state(path: Path, player_id: str) -> PlayerPolicyState:
         if not isinstance(a, dict):
             return init_player(player_id)
         try:
-            arms.append(ArmState(**a))
+            arm = ArmState(**a)
         except (TypeError, KeyError):
             return init_player(player_id)
+        # Beta parameters must be positive finite numbers or betavariate raises
+        # (or a string would fail) inside choose_arm.
+        if not isinstance(arm.arm_id, str) or not all(
+            isinstance(v, (int, float))
+            and not isinstance(v, bool)
+            and math.isfinite(v)
+            and v > 0
+            for v in (arm.alpha, arm.beta)
+        ):
+            return init_player(player_id)
+        arms.append(arm)
 
     # Use the function argument player_id, which we've validated against disk.
     return PlayerPolicyState(
