@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import random
 from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
@@ -97,8 +98,18 @@ def _load_json(path: Path) -> Optional[Dict[str, Any]]:
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, UnicodeDecodeError, OSError):
         return None
+
+
+def _valid_beta_param(value: Any) -> bool:
+    """Beta parameters must be real, finite and strictly positive."""
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value > 0
+    )
 
 
 def _save_json(path: Path, obj: Dict[str, Any]) -> None:
@@ -263,7 +274,7 @@ def load_or_init_player_state(path: Path, player_id: str) -> PlayerPolicyState:
     # If the persisted player_id doesn't match, or types are wrong, start fresh.
     if not isinstance(loaded_player_id, str) or loaded_player_id != player_id:
         return init_player(player_id)
-    if not isinstance(runs_seen, int):
+    if not isinstance(runs_seen, int) or isinstance(runs_seen, bool) or runs_seen < 0:
         return init_player(player_id)
     if not isinstance(arms_raw, list):
         return init_player(player_id)
@@ -275,6 +286,13 @@ def load_or_init_player_state(path: Path, player_id: str) -> PlayerPolicyState:
         try:
             arms.append(ArmState(**a))
         except (TypeError, KeyError):
+            return init_player(player_id)
+        # A corrupt state file must not reach random.betavariate, which raises
+        # on non-positive or non-numeric parameters.
+        last = arms[-1]
+        if not isinstance(last.arm_id, str) or not (
+            _valid_beta_param(last.alpha) and _valid_beta_param(last.beta)
+        ):
             return init_player(player_id)
 
     # Use the function argument player_id, which we've validated against disk.
