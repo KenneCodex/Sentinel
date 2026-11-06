@@ -241,3 +241,28 @@ def test_unknown_persisted_arm_is_dropped(tmp_path):
 
     state = load_or_init_player_state(path, "P1")
     assert "Z_RETIRED_ARM" not in {a.arm_id for a in state.arms}
+
+
+def test_load_rejects_corrupt_beta_params(tmp_path):
+    import json
+    from tools.msq_bandit_policy import choose_arm, load_or_init_player_state
+
+    for bad in (0, -1, "x", None, float("nan"), True):
+        path = tmp_path / "p.json"
+        path.write_text(json.dumps({
+            "player_id": "P", "runs_seen": 10,
+            "arms": [{"arm_id": "A_BASELINE", "alpha": bad, "beta": 1.0}],
+        }))
+        state = load_or_init_player_state(path, "P")
+        assert state.runs_seen == 0
+        choose_arm(state, seed=1)  # must not raise
+
+
+def test_load_rejects_bad_runs_seen(tmp_path):
+    import json
+    from tools.msq_bandit_policy import load_or_init_player_state
+
+    for bad in (-5, True):
+        path = tmp_path / "p.json"
+        path.write_text(json.dumps({"player_id": "P", "runs_seen": bad, "arms": []}))
+        assert load_or_init_player_state(path, "P").runs_seen == 0
